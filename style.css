@@ -1,0 +1,48 @@
+/* Split the screen in three parts */
+.split
+{
+	top: 0;
+	height: 100%;
+	position: fixed;
+}
+
+/* Control the left side */
+.left
+{
+	left: 0%;
+	width: 32%;
+	background-color: white;
+}
+
+/* Control the center side */
+.center
+{
+	left: 33%;
+	width: 34%;
+	background-color: white;
+}
+
+/* Control the right side */
+.right
+{
+	right: 0%;
+	width: 32%;
+	background-color: white;
+}
+
+/* The content is centered horizontally and vertically */
+.centered
+{
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	text-align: center;
+}
+
+/* Style the image inside the centered container */
+.centered img
+{
+	width: 100%;
+	height: auto;
+}
