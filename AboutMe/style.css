@@ -1,0 +1,16 @@
+/* center the images horizontally and vertically */
+img
+{
+    width: 50%;
+    height: auto;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+/* center the unordered list */
+ul
+{
+	width: 50%;
+    margin: auto;
+}

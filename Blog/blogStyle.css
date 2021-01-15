@@ -1,0 +1,25 @@
+/* title */
+h1
+{
+	color: white;
+	text-align: center;
+}
+
+/* date */
+h4
+{
+	color: orange;
+}
+
+/* horizontal row */
+hr
+{
+	color: gold;
+}
+
+/* left and right padding for the text */
+div
+{
+	padding-left: 20%;
+	padding-right: 20%;
+}
