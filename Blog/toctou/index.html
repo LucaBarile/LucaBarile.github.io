@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="Exploiting TOCTOU vulnerability using OpLock and Junctions">
+		<meta name="keywords" content="TOCTOU, Time Of Check Time Of Use, Exploit, POC, OpLock, Opportunistic Lock, Junctions, Race Condition, Symlink, mklink">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../postsStyle.css">
+		
+		<title>TOCTOU</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<h1>Exploiting TOCTOU vulnerability using OpLock and Junctions</h1>
+		<br>
+		<div>
+			<p>
+				<h2>What is a TOCTOU vulnerability? &#129300;</h2>
+				<h3>
+					TOCTOU stands for Time-Of-Check Time-Of-Use and is a software vulnerability which afflicts those programs that, before using a certain file (Time-Of-Use), perform a check on it (Time-Of-Check) but these two steps aren't necessarily performed in an <a href="https://www.techopedia.com/definition/3466/atomic-operation">atomic way</a> (that is, sequentially and in not interruptible (by any other process that wants to access to the file) way), but could be performed in two distinct times.<br>This is a problem because, as I'll show in my following POCs, an attacker can perform particular malicious operations between the Time-Of-Check and the Time-Of-Use, that could lead to unexpected program behavior. You can see in the image below (taken from <a href="https://medium.com/@schogini/toctou-time-of-check-and-time-of-use-a-demonstration-and-mitigation-609c999042cb">this</a> site) the period between the TOC and the TOU.
+				</h3>
+				
+				<img src="media/toctou.png" alt="" title="An attacker can perform particular malicious operations between TOC and TOU.">
+				
+				<h3>
+					Why should the program check the file (TOC) before performing operations on it (TOU)? There can be several reasons, for example:
+					<ul>
+						<li>Verify that the file exists.</li>
+						<li>Verify that the file is signed (e.g. a <a href="https://social.msdn.microsoft.com/Forums/vstudio/en-US/a8df0a45-ca4c-462b-aabd-e5876ef76c0c/difference-between-signed-and-unsigned-dll?forum=netfxbcl">signed dll</a>).</li>
+						<li>Verify that the file is not corrupted.</li>
+						<li>Verify that the file has the necessary security permissions to perform particular operations.</li>
+						<li>More generally, verify that the file has the required privileges to perform particular operations.</li>
+					</ul>
+				</h3>
+			</p>
+		</div>
+
+		<div>
+			<p>
+				<h2>What is an Opportunistic Lock (OpLock)? &#8987;</h2>
+				<h3>
+					In short, an <a href="https://docs.microsoft.com/en-us/windows/win32/fileio/opportunistic-locks">Opportunistic Lock</a> (OpLock) is a mechanism that allows to temporarily block access to a certain file. In general, access to a file, can be done in order to execute, read, write or delete it (or a combination of these operations); with an opportunistic lock we can block one or more of these types of access.<br>If we want to block any type of access to the file, the lock is called <u>exclusive lock</u> (shared and other exclusive locks can't be setted), otherwise, if we want to block only some types of access and allow others, it is called <u>shared lock</u> (multiple shared locks can co-exist and if one or more shared locks already exist, exclusive locks can't be setted).<br>Read <a href="https://docs.microsoft.com/en-us/windows/win32/fileio/types-of-opportunistic-locks">this</a> article for more information on the different types of OpLocks, and <a href="https://stackoverflow.com/questions/11837428/whats-the-difference-between-an-exclusive-lock-and-a-shared-lock">this</a> to understand, through a nice example, what is the difference between a shared lock and an exclusive lock.<br><br>Fortunately <a href="https://github.com/tyranid">James Forshaw</a> &#128583; has already developed and made available to the whole community a <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/master/SetOpLock">tool</a> that allows to set an OpLock on a file or directory, and then wait for user confirmation to release it.<br>We can set an exclusive OpLock on the target file using the following command: <i>SetOpLock.exe C:\path\target.txt</i><br>We can set a shared OpLock on the target file using the following command: <i>SetOpLock.exe C:\path\target.txt [rwd]</i><br>Read the <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/blob/master/SetOpLock/SetOpLock_ReadMe.txt">readme</a> file for more information about the basic usage.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/SetOpLock_example.gif" alt="" title="Example of SetOpLock.exe usage.">
+		
+		<div>
+			<p>
+				<h2>We have a race to win! &#127939;&#129351;</h2>
+				<h3>
+					Let's try to combine the pieces... We have a program affected by a TOCTOU vulnerability; how can we exploit it? I said that between the TOC and the TOU the attacker can perform particular malicious operations; how?<br> The attacker has only a narrow window of vulnerability available (on the order of milliseconds), and must be able to execute its malicious operations before the program reaches the TOU. This situation is typically defined as <a href="https://techterms.com/definition/race_condition">race condition</a>.<br>A race condition occurs when a software program depends on the timing of one or more processes (or threads) to works correctly. If a thread runs or finishes at an unexpected time, it may cause unpredictable behavior, such as incorrect output or a process deadlock.<br>In our case the participants in the race are the attacker and the vulnerable program: if the program reaches the TOU before the attacker performs his malicious operations, the application will win the race, and get a proper execution as a reward!!&#10004;&#65039;&#127942;<br>But what if the application, between the TOC and the TOU, performs other operations such as, for example, reading some information from a certain file? Could the attacker, knowing the path of the file, win the race by setting an OpLock on it?
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<h2>Exploiting TOCTOU vulnerability using OpLock to win the race &#127939;&#129351;</h2>
+				<h3>
+					The answer is yes!<br>
+					I have developed a simple <a href="https://github.com/LucaBarile/TOCTOU/tree/main/POC1">POC</a> where an application (<a href="https://github.com/LucaBarile/TOCTOU/tree/main/CodeReader">CodeReader.exe</a>) which, trivially, reads the first line of a file (f1.txt), the first line of another file (f2.txt) and, if the line read from f1.txt is equal to the line read from f2.txt, then it reads and prints the second line of f1.txt on the screen.<br>CodeReader.exe is affected by a TOCTOU vulnerability: the TOC consists in the reading of f1.txt first line, and the TOU in the reading (and printing) of the f1.txt second line (these two steps aren't atomic; they're performed in two distinct moments of time).<br>Below the CodeReader.exe source code:
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/poc1.png" alt="" title="CodeReader.exe source code.">		
+					
+		<div>
+			<p>
+				<h3>
+					The problem is that between the TOC and the TOU (the narrow window of vulnerability), CodeReader.exe reads f2.txt first line. The attacker can exploit this moment by setting an OpLock on f2.txt, before CodeReader.exe is executed. When CodeReader.exe is executed and tries to read the f2.txt first line, it will be blocked by the OpLock, and the attacker can take advantage of this moment by modifying the secret code written in the f1.txt second line. At this point the attacker can release the OpLock, CodeReader.exe will be able to resume its normal execution and will read the f2.txt first line. Since the f1.txt first line is the same as f2.txt first line, CodeReader.exe will read and print the code written in the f1.txt second line, which has been tampered by the attacker. The following steps summarizes the operations just described, while the video shows how they are put into practice.
+					
+					<ol>
+						<li>The attacker sets an OpLock on f2.txt.</li>
+						<li>CodeReader.exe is executed.</li>
+						<li>CodeReader.exe reads the first line of f1.txt.</li>
+						<li>CodeReader.exe tries to read the first line of f2.txt but it can't do it because the file is locked by the OpLock, so it goes into a waiting state.</li>
+						<li>The attacker modifies the secret code written in the second line of f1.txt.</li>
+						<li>The attacker releases the OpLock on f2.txt.</li>
+						<li>CodeReader.exe can resume its execution and reads the first line of f2.txt.</li>
+						<li>CodeReader.exe compares the first line of f1.txt with the first line of f2.txt.</li>
+						<li>Since the two lines are equals, CodeReader.exe reads and prints the second line of f1.txt on the screen (tampered by the attacker).</li>
+						<li>CodeReader.exe ends its execution.</li>
+					</ol>
+					
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/poc1.gif" alt="" title="POC1.">
+		
+		<div>
+			<p>
+				<h2>Junctions &#128193;&#9193;&#128193;</h2>
+				<h3>
+					In the previous paragraph we've seen a simple example which illustrates how an OpLock can be the key tool to exploit a TOCTOU vulnerability and win the race. As you've probably guessed reading the title of this post, we can also use another tool (also combined with the OpLock) to exploit the TOCTOU vulnerability and win the race: the Junction.<br><br>The function of a junction is to reference a target directory and is implemented through <a href="https://docs.microsoft.com/en-us/windows/win32/fileio/reparse-points">reparse points</a>. Junctions can be created to link directories located on different partitions or volume, but only locally on the same computer. Directory junctions do not take up additional space even though they are stored on the drive partition, and if the target is deleted, moved or renamed, all junctions which point to it will break, and continue to point to a non-existent directory.<br>Read <a href="https://www.2brightsparks.com/resources/articles/ntfs-hard-links-junctions-and-symbolic-links.html">this</a> article (from which I took the image below) and <a href="https://docs.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions">this</a> to learn more about the topic. 
+				</h3>
+				
+				<img src="media/junction.png" alt="" title="Junction representation.">
+				
+				<h3>
+					Clearly, we don't have to confuse the standard shortcuts (.lnk file) with the junctions (implemented through reparse points). &#9888;&#65039;<br>In the following example I show:
+					<ol>
+						<li>How a standard .lnk shortcut can't be managed like a traditional folder.</li>
+						<li>How to create and use a junction.</li>
+					</ol>
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/junction.gif" alt="" title="Creating ad using a Junction.">
+		
+		<div>
+			<p>
+				<h2>Win the race with OpLock and Junctions</h2>
+				<h3>
+					Sometimes, as shown in the previous <a href="https://github.com/LucaBarile/TOCTOU/tree/main/POC1">POC</a>, it's enough to use an OpLock to cause unexpected behavior to an application. Other times, as shown <a href="http://daniels-it-blog.blogspot.com/2020/06/when-your-anti-virus-turns-against-you.html">here</a>, it's sufficient to use a junction and other links (in this case an Object Manager symbolic link). In still others, it's necessary to combine the use of an OpLock with one (or more) junction(s), and this is the case I want to talk about.
+				</h3>
+				
+				<h2>Scenario</h2>
+				<h3>
+					<ul>
+						<li>The user who is using the system has only StandardUser privileges, and wants to elevate his privileges (EoP aka LPE).</li>
+						<li>dir2 is the directory where a system program (let's call it Prg) is installed (and runs with NT AUTHORITY\SYSTEM privileges). This directory contains several files necessary for Prg (to works properly), including signedDll.dll.</li>
+						<li>The user, with StandardUser privileges, can trigger the Prg update.</li>
+						<li>When the Prg update starts, the directory (dir1) is created and the new version of signedDll.dll is downloaded in it. This folder is created in a filesystem location where the user has full access rights (rwe).</li>
+						<li>After completing the download of all updated files, the update program (<a href="https://github.com/LucaBarile/TOCTOU/tree/main/UpdateDll">UpdateDll.exe</a>), among the various operations, replaces dir2\signedDll.dll with the updated one just downloaded (dir1\signedDll.dll). As the UpdateDll.exe developers know that the user could be a StandardUser and could access to the folder where the updated files are downloaded, they've implemented a protection system on the downloaded files, to prevent the user from tampering with them. In particular, signedDll.dll is a <a href="https://social.msdn.microsoft.com/Forums/vstudio/en-US/a8df0a45-ca4c-462b-aabd-e5876ef76c0c/difference-between-signed-and-unsigned-dll?forum=netfxbcl">signed dll</a> (in case the name is not clear enough... &#128549;). In this way the user ins't able (sure? &#129300;) to perform a <a href="../dll_hijacking_and_proxying/index.html">DLL Hijacking</a> attack.</li>
+						<li>If the signature check is successful, UpdateDll.exe replaces the old dir2\signedDll.dll with the updated dir1\signedDll.dll and runs Prg (which has now been updated and must load dir2\signedDll.dll to run properly).</li>
+					</ul>
+					The video below shows the proper Prg update performed by UpdateDll.exe. As you can see, dir1\signedDll.dll (whose signature is written in its first line) replaces the old dir2\signedDll.dll
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/normal_update.gif" alt="" title="UpdateDll.exe works properly.">
+		
+		<div>
+			<p>
+				<h2>Analyzing UpdateDll.exe source code &#128269;&#128104;&#8205;&#128187;</h2>
+				<h3>
+					Analyzing the UpdateDll.exe source code shown below, we can see how the program accesses to dir1\signedDll.dll twice (the first time to read its signature (TOC), and the second time to copy it to dir2 directory (TOU)). Since these instructions aren't performed in an atomic way, we can try to exploit the TOCTOU vulnerability. 
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/UpdateDll.png" alt="" title="UpdateDll.exe source code.">
+		
+		<div>
+			<p>
+				<h2>Attempt 1: exploiting UpdateDll.exe using OpLock &#8987;</h2>
+				<h3>
+					An idea to exploit the vulnerability is to proceed in a similar way to what was done in the first <a href="https://github.com/LucaBarile/TOCTOU/tree/main/POC1">POC</a>. We can set an OpLock on dir2\signedDll.dll before starting UpdateDll.exe so that, once started, it will confirm the signature but will be blocked during its attempt to replace dir2\signedDll.dll with dir1\signedDll.dll, because dir2\signedDll.dll is blocked by the OpLock. At this point the attacker can replace dir1\signedDll.dll with his malicious dll and release the lock on dir2\signedDll.dll. UpdateDll.exe will resume its execution and  finally will be able to replace dir2\signedDll.dll with dir1\signedDll.dll (the malicious dll introduced by the attacker).<br>The following steps summarizes the operations just described.
+					
+					<ol>
+						<li>Set an OpLock on dir2\signedDll.dll.</li>
+						<li>Execute UpdateDll.exe.</li>
+						<li>UpdateDll.exe confirm the (original) dir1\signedDll.dll signature but it will be blocked during its attempt to replace dir2\signedDll.dll with dir1\signedDll.dll because of the OpLock.</li>
+						<li>Replace dir1\signedDll.dll with our malicious dll (with the same name).</li>
+						<li>Release the OpLock on dir2\signedDll.dll.</li>
+						<li>dir2\signedDll.dll will be replaced by UpdateDll.exe with our malicious dll.</li>
+					</ol>
+					
+					Everything is beautiful but StandardUser has no privileges on dir1, do you remember? &#128530;<br>So he can't set any OpLock on it. &#128557; 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<h2>Attempt 2: exploiting UpdateDll.exe using Junctions &#128193;&#9193;&#128193;</h2>
+				<h3>
+					Another idea to exploit the vulnerability is to use a junction to trick UpdateDll.exe. We can create a FakeDir folder and copy dir1\signedDll.dll in it, then, after renaming dir1 to _dir1 (for example), we can create a junction (named dir1) to FakeDir. Now we can run UpdateDll.exe and, after the FakeDir\signedDll.dll signature check (TOC) but before copying dir1\signedDll.dll to dir2\signedDll.dll (TOU), we delete the junction (dir1), replace _dir1\signedDll.dll with our malicious dll and rename _dir1 to dir1. In this way, during the TOU, UpdateDll.exe will replace dir2\signedDll.dll with our malicious dll.<br>The following steps summarizes the operations just described.
+					
+					<ol>
+						<li>Create a FakeDir directory.</li>
+						<li>Copy dir1\signedDll.dll to FakeDir.</li>
+						<li>Rename dir1 to _dir1.</li>
+						<li>Create dir1 junction to FakeDir.</li>
+						<li>Execute UpdateDll.exe.</li>
+						<li>After the TOC (and before the TOU):</li>
+						<ol>
+							<li>Delete dir1 junction.</li>
+							<li>Replace _dir1\signedDll.dll with the malicious dll (with the same name).</li>
+							<li>Rename _dir1 to dir1.</li>
+						</ol>
+						<li>UpdateDll.exe will replace dir2\signedDll.dll with our malicious dll.</li>
+					</ol>
+					
+					Also in this case everything is beautiful, but I think that no human could be able to perform point 6 between the TOC and the TOU manually... &#128565;<br>You must have understood that we've to combine the use of the junction with the use of the OpLock. &#128161;<br>
+				</h3>
+			</p>
+		</div>
+
+		<div>
+			<p>
+				<h2>Attempt 3: exploiting UpdateDll.exe using Junctions and OpLock</h2>
+				<h3>
+					To perform the previous point 6 between the TOC and the TOU, we can use an OpLock; it will give us all the time we need.<br>We can't set the OpLock on dir2 and in none of its file, but we can set it on FakeDir\signedDll.dll. The new steps are similar to the previous ones with the difference that, before running UpdateDll.exe (ex-point 5), we set the OpLock and release it only after completing ex-point 6.<br>The following list lists the steps in more detail:
+					
+					<ol>
+						<li>Create a FakeDir directory.</li>
+						<li>Copy dir1\signedDll.dll to FakeDir.</li>
+						<li>Rename dir1 to _dir1.</li>
+						<li>Create dir1 junction to FakeDir.</li>
+						<li>Set an OpLock on FakeDir\signedDll.dll.</li>
+						<li>Execute UpdateDll.exe.</li>
+						<li>UpdateDll.exe tries to read and verify the dir1\signedDll.dll signature but, since dir1 is a junction to FakeDir, UpdateDll.exe tries to read and verify the signature of FakeDir\signedDll.dll.</li>
+						<li>UpdateDll.exe can't perform the previous step immediately because FakeDir\signedDll.dll is blocked by the OpLock, so it goes into a waiting state.</li>
+						<li>Delete dir1 junction.</li>
+						<li>Rename _dir1 to dir1.</li>
+						<li>Copy the malicious dll (maliciousDll.dll) to dir1.</li>
+						<li>Rename dir1\signedDll.dll to _signedDll.dll.</li>
+						<li>Rename dir1\maliciousDll.dll to signedDll.dll.</li>
+						<li>Close the OpLock on FakeDir\signedDll.dll.</li>
+						<li>UpdateDll.exe comes out of the waiting state and can finally read and check the FakeDir\signedDll.dll signature.</li>
+						<li>The check passed because FakeDir\signedDll.dll is a copy of the original dll (therefore it's signed correctly).</li>
+						<li>UpdateDll.exe continues its execution and replace dir2\signedDll.dll with dir1\signedDll.dll (but now dir1\signedDll.dll is our malicious dll).</li>
+					</ol>
+					
+					If everything goes well, in dir2 you should find the malicious dll (and I really hope you'll find it because i'm not going to write an eventual Attempt 4 &#128529;).<br><br>Using the junction we can trick UpdateDll.exe, forcing it to check the signedDll.dll signature from an unexpected directory (FakeDir instead of dir1). In this way the check takes place in one directory (FakeDir), while the copy operation of the original dll takes place, at a later time, from the directory expected by UpdateDll.exe (dir1). Between reading and copying, thanks to the OpLock which temporarily blocks UpdateDll.exe, we can replace (in dir1) the original dll with the malicious one, which will then be copied to dir2 by UpdateDll.exe without further checks. &#129395;&#127881;<br>I've automated the steps listed above in an <a href="https://github.com/LucaBarile/TOCTOU/blob/main/POC2/Exploit.bat">exploit</a> as a batch file; you can see its execution in the <a href="https://github.com/LucaBarile/TOCTOU/tree/main/POC2">POC</a> below.
+				</h3>
+			</p>
+		</div>
+
+		<img src="media/poc2.gif" alt="" title="Exploiting UpdateDll.exe using Junctions and OpLock.">
+
+		<div>
+			<p>
+				<h2>Conclusion</h2>
+				<h3>
+					TOCTOU vulnerability isn't always easy to recognize and prevent, although the following tools (and tips) can be good options to address and mitigate the problem:
+					<ul>
+						<li>Source code static analysis tools (take a look <a href="https://owasp.org/www-community/Source_Code_Analysis_Tools">here</a>).</li>
+						<li>Open the critical file only once and do everything you need through the file descriptor rather than the file name.</li>
+						<li>Use one atomic operation containing the check (TOC) and the use (TOU) of the file.</li>
+					</ul>
+					Junctions are another tool that complicates things further, often they're sneaky and allows the attacker to produce unexpected application behavior. Finally, if we also consider the OpLocks, further possibilities open up for the attacker and the combinations of all these tools, help him to achieve his malicious purposes.<br><br>In particular, the ultimate goal of this post is to highlight how, through the combination of these tools it's possible to get an EoP, performing a series of predetermined steps (which could allow a <a href="https://lucabarile.github.io/Blog/dll_hijacking_and_proxying/index.html">dll hijacking</a>, for example). The second <a href="https://github.com/LucaBarile/TOCTOU/tree/main/POC2">POC</a> takes a cue from <a href="https://amonitoring.ru/article/onemore_steam_eop_0day/">CVE-2019-14743</a> (discovered by <a href="https://twitter.com/PsiDragon">Vasily Kravets</a> &#128583; (<a href="https://github.com/alexanderbittner/steam-privesc">here</a> the POC developed by <a href="https://alexanderbittner.com/">Alexander Bittner</a>)) and wants to put in evidence how many of the current vulnerabilities are exploited in a similar way to get an EoP.<br>Below you can find other Windows exploits, based on file link (e.g. junctions) and OpLock: 
+					<ul>
+						<li><a href="https://itm4n.github.io/cve-2020-0787-windows-bits-eop/">CVE-2020-0787</a> (Windows Background Intelligent Transfer Service). &#128165;</li>
+						<li><a href="https://medium.com/csis-techblog/cve-2020-1088-yet-another-arbitrary-delete-eop-a00b97d8c3e2">CVE-2020-1088</a> (Windows Error Reporting Service). &#128165;</li>
+						<li><a href="https://www.thezdi.com/blog/2020/10/27/cve-2020-16939-windows-group-policy-dacl-overwrite-privilege-escalation">CVE-2020-16939</a> (Windows Group Policy Client). &#128165;</li>
+					</ul>
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<h2>Useful references</h2>
+				<h3>
+					<ul>
+						<li>TOCTOU &amp; Race condition</li>
+							<a href="https://medium.com/@schogini/toctou-time-of-check-and-time-of-use-a-demonstration-and-mitigation-609c999042cb">https://medium.com/@schogini/toctou-time-of-check-and-time-of-use-a-demonstration-and-mitigation-609c999042cb</a>
+							<br>
+							<a href="https://techterms.com/definition/race_condition">https://techterms.com/definition/race_condition</a>
+							<br><br>
+
+						<li>OpLock</li>
+							<a href="https://docs.microsoft.com/en-us/windows/win32/fileio/opportunistic-locks">https://docs.microsoft.com/en-us/windows/win32/fileio/opportunistic-locks</a>
+							<br>
+							<a href="https://docs.microsoft.com/en-us/windows/win32/fileio/types-of-opportunistic-locks">https://docs.microsoft.com/en-us/windows/win32/fileio/types-of-opportunistic-locks</a>
+							<br>
+							<a href="https://stackoverflow.com/questions/11837428/whats-the-difference-between-an-exclusive-lock-and-a-shared-lock">https://stackoverflow.com/questions/11837428/whats-the-difference-between-an-exclusive-lock-and-a-shared-lock</a>
+							<br>
+							<a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/master/SetOpLock">https://github.com/googleprojectzero/symboliclink-testing-tools/tree/master/SetOpLock</a>
+							<br><br>
+							
+						<li>Junctions and Symbolic Links</li>
+							<a href="https://docs.microsoft.com/en-us/windows/win32/fileio/reparse-points">https://docs.microsoft.com/en-us/windows/win32/fileio/reparse-points</a>
+							<br>
+							<a href="https://www.2brightsparks.com/resources/articles/ntfs-hard-links-junctions-and-symbolic-links.html">https://www.2brightsparks.com/resources/articles/ntfs-hard-links-junctions-and-symbolic-links.html</a>
+							<br>
+							<a href="https://docs.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions">https://docs.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions</a>
+							<br><br>
+							
+						<li>Mitigation</li>
+							<a href="https://owasp.org/www-community/Source_Code_Analysis_Tools">https://owasp.org/www-community/Source_Code_Analysis_Tools</a>
+							<br>
+							<a href="https://social.msdn.microsoft.com/Forums/vstudio/en-US/a8df0a45-ca4c-462b-aabd-e5876ef76c0c/difference-between-signed-and-unsigned-dll?forum=netfxbcl">https://social.msdn.microsoft.com/Forums/vstudio/en-US/a8df0a45-ca4c-462b-aabd-e5876ef76c0c/difference-between-signed-and-unsigned-dll?forum=netfxbcl</a>
+							<br>
+							<a href="https://www.techopedia.com/definition/3466/atomic-operation">https://www.techopedia.com/definition/3466/atomic-operation</a>
+					</ul>
+				</h3>
+			</p>
+		</div>
+
+	</body>
+	
+</html>
