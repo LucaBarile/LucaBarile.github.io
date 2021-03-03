@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="AntiAlexa - Solving Amazon's digital assistants problem">
+		<meta name="keywords" content="AntiAlexa, Amazon, Speaker, Digital assistant, Echo, Dot, Show, Plus, Bluetooth, Problem, Connection, Solve, Windows">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../postsStyle.css">
+		
+		<title>AntiAlexa</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<h1>AntiAlexa - Solving Amazon's digital assistants problem</h1>
+		<br>
+		<div>
+			<p>
+				<h2>What's the problem? &#129300;</h2>
+				<h3>
+					After one of the many automatic updates of my Amazon digital assistant (in my case <a href="https://en.wikipedia.org/wiki/Amazon_Echo#Echo_Dot">Amazon Echo Dot</a>) which I also use as a speaker for my PC, I noticed that if my PC doesn't play any sound for a certain number of minutes and then try to play some sound, the digital assistant, before playing the sound, notifies me (vocally) that it has successfully connected via bluetooth.<br>This is really boring, also because often the notification is longer than the sound itself... &#128530;<br><br>Surfing the net I found out that I'm not the only one with this problem; many other people have the same problem and don't know how to fix it.<br>Many users have turned to the Amazon Help Center for help and to resolve the issue but the support responses were unsatisfactory and, to date, Amazon hasn't released any updates that fix the problem yet.<br>It's funny to read how some people wake up during the night because the digital assistant notifies that it has successfully connected via bluetooth when the smartphone (associated with the digital assistant) has to play some notification sound &#128266;&#128564;&#128557;<br><br>Below you can find several forums where many users (rightfully) complain and desperately seek a solution to fix the problem.
+					
+					<ul>
+						<li><a href="https://www.amazonforum.com/s/question/0D54P00006zStJTSA0/how-do-i-stop-alexa-from-telling-me-its-connected-to-my-phone">AmazonForum</a></li>
+						<li><a href="https://alexa.uservoice.com/forums/906892-alexa-skills-developer-voice-and-vote/suggestions/40358071-bluetooth-brief-mode-turns-off-device-connection">AlexaUserVoice</a></li>
+						<li><a href="https://forums.developer.amazon.com/questions/8651/disable-bluetooth-now-connected-to-message.html">ForumsDeveloper</a></li>
+						<li><a href="https://www.reddit.com/r/amazonecho/comments/cmdlk5/any_way_to_make_alexa_stop_saying_connected_to/">Reddit</a></li>
+						<li><a href="https://www.echotalk.org/index.php?topic=326.0">EchoTalk</a></li>
+						<li>To be continued...</li>
+					</ul>
+					
+				</h3>
+			</p>
+
+			<p>
+				<h2>Let's investigate the cause of the problem &#128269;</h2>
+				<h3>
+					The digital assistant behavior is due to its automatic standby mechanism which is triggered after a certain period of inactivity.<br>By doing some tests with my Echo Dot I found out that this period of inactivity must be greater than or equal to 10 minutes (also in <a href="https://www.echotalk.org/index.php?topic=3039.0">this</a> forum an user proposes the same period of time).<br>The idea of automatic standby after a certain period of device inactivity is intelligent because it saves energy (it perfectly implements the idea of energy saving). Unfortunately, less intelligent it's the algorithm implemented by Amazon, which doesn't consider that the digital assistant had previously announced that he was connected via bluetooth, and doesn't even give the possibility to disable this particular type of notification &#129318; 
+				</h3>
+			</p>
+
+			<p>
+				<h2>Some possible solutions to solve the problem &#128161;</h2>
+				<h3>
+					Since we can't disable the notification related to the bluetooth connection, we'll probably have to give up the automatic standby mechanism (therefore also energy saving). In fact, by avoiding standby, the digital assistant will always remain connected via bluetooth, avoiding to play the boring notification.<br>Below there're some ideas to disable automatic standby mechanism:
+					
+					<ul>
+						<li>Prevent the automatic standby of the bluetooth device using <a href="https://en.wikipedia.org/wiki/Device_Manager">Windows Device Manager</a> (I didn't find this entry for my Echo Dot).</li>
+						<li>Implement a Skill for Alexa which plays a sound every n minutes (with n less than 10).<br>But... What if I want to activate other skills? I should vocally reactivate it every time. &#129300;</li>
+						<li>Make the PC play some sound every 10 minutes... Boring &#129393;</li>
+						<li>Don't use the digital assistant as PC speaker? No! We don't want to give up &#9940;&#127987;&#65039;</li>
+						<li>Run an application that automatically plays an empty audio every n minutes (with n less than 10) and doesn't bother us. It sounds interesting... It's <a href="https://github.com/LucaBarile/AntiAlexa">AntiAlexa</a>! &#10004;&#65039;</li>
+					</ul>
+					
+				</h3>
+			</p>
+
+			<p>
+				<h2>Using AntiAlexa to solve the problem &#128263;</h2>
+				<h3>
+					Since the different options described above didn't work with my Echo Dot or seemed inconvenient, I decided to develop a Windows application on my own, capable of doing what I described in the last point of the previous list.<br>In particular AntiAlexa (I chose this name because at that moment I was particularly irritated by the fact that the Amazon Alexa app didn't allow to disable the bluetooth notification &#128545;) is a <a href="https://docs.microsoft.com/en-us/dotnet/csharp/tutorials/console-teleprompter">Windows console application</a> written in <a href="https://en.wikipedia.org/wiki/C_Sharp_(programming_language)">C&#9839;</a> (<a href="https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/Program.cs">here</a> its source code) which has the following features:
+					
+					<ul>
+						<li>Only at the first start it installs itself on the system (it copies itself in the Windows StartUp folder so that it can be started automatically at every system start, without requiring user interactions), executes its newly installed copy, notifies the user of successful installation and, before ending, launches an independent process (cmd), that waits for its termination and deletes it.</li>
+						<li>During its execution the application play an <a href="https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/Properties/Silent1s.wav">empty sound</a> (which lasts one second and doesn't bother the user because it can't be heard) every 5 minutes, preventing the digital assistant standby. </li>
+						<li>It's a console application but, in the project properties, I set it as a Windows application. In this way the console window isn't visible, the application doesn't appear in the Task Manager's active applications list but in that of background processes and, last but not least (especially for those who, like me, often use the Alt+Tab shortcut to switch from one application to another), it doesn't appear between the windows which show up by pressing Alt+Tab, avoiding to interfere in switching from one application to another. </li>
+						<li>It's free and open source (<a href="https://en.wikipedia.org/wiki/MIT_License">MIT License</a>) and you can easily download it from my GitHub repository by clicking <a href="https://github.com/LucaBarile/AntiAlexa">here</a>.</li>
+						<li>Once installed it will no longer require any interaction because it will work completely automatically at every system startup (you won't even have to delete the &quot;installation file&quot; because it's programmed to automatically delete itself after the installation &#128526;).</li>
+						<li>It solves the annoying notification problem avoiding the automatic standby mechanism of the digital assistant (and therefore energy saving). &#128263;</li>
+					</ul>
+					
+				</h3>
+			</p>
+		
+			<p>
+				<h2>How to install AntiAlexa? &#127384;</h2>
+				<h3>
+					When I developed AntiAlexa I set, in the project properties, the <a href="https://en.wikipedia.org/wiki/.NET_Framework">.NET Framework</a> 4.5 as the target framework, therefore, in order to run the application correctly, the .NET Framework 4.5 (or a later version) must already be installed on your PC.<br>As you can read <a href="https://stackoverflow.com/questions/35362303/which-net-version-does-windows-10-have-built-in">here</a> from Windows 10 (version 1507) the .NET Framework should already be installed on the system by default. If it isn't, before installing AntiAlexa, download and install the latest version of the .NET Framework from <a href="https://www.microsoft.com/it-it/download/details.aspx?id=55167">here</a> (Microsoft official website).<br>If you don't know if the .NET Framework is installed on your system, you can follow <a href="https://www.windowscentral.com/how-quickly-check-net-framework-version-windows-10">this</a> procedure to figure it out.<br><br>Perfect! Now all you have to do is to install AntiAlexa by following the steps below:
+					
+					<ol>
+						<li>Access to my GitHub repository by clicking <a href="https://github.com/LucaBarile/AntiAlexa">here</a>.</li>
+						<li>Download my project by clicking on the &quot;Code&quot; button at the top right and then click &quot;Download ZIP&quot;.</li>
+						<li>Extract the contents of the ZIP archive (the folder &quot;AntiAlexa-main&quot; should appear) and delete the archive.</li>
+						<li>Browse the folder following this path: &quot;...&#92;AntiAlexa-main&#92;AntiAlexa&#92;AntiAlexa&#92;bin&#92;Debug&#92;&quot;</li>
+						<li>Run AntiAlexa.exe</li>
+						<li>A MessageBox indicating that the application has been successfully installed should appear.</li>
+						<li>AntiAlexa should self-eliminate within three seconds.</li>
+						<li>Now you can delete the &quot;AntiAlexa-main&quot; folder.</li>
+						<li>Antialexa is now running properly and will be executed automatically at every Windows startup. You can easily check this by using the Windows Task Manager and checking the content of the Windows StartUp folder.</li>
+					</ol>
+					
+					If you have any difficulty following the above steps, I've recorded the following video to help you &#128519;<br>Don't worry about any possible antivirus warning (e.g. Windows Defender or any other antivirus system)! AntiAlexa isn't a malware and you can easily verify that it's safe by analyzing its source code <a href="https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/Program.cs">here</a>.
+					
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/installation.gif" alt="" title="Installing AntiAlexa.exe">
+		
+		<div>
+			<p>
+				<h2>Note &#9888;&#65039;</h2>
+				<h3>
+					Obviously AntiAlexa is developed for PC with Windows OS so, all those who have this problem with a smartphone or a PC with another OS, should either look for a program similar to AntiAlexa for their target OS, or they might write a similar program (probably in another programming language) on their own, taking a cue from (or converting entirely) mine.<br>The second choice would certainly be more challenging but also more exciting and, if completed successfully, would allow you to learn a lot and share to the whole community your solution to the problem for the target system you've chosen, like I did for Windows OS. 
+				</h3>
+				
+				<h2>Conclusion</h2>
+				<h3>
+					We've seen that, to date, in Amazon's digital assistants (I don't know if in all the lineup, but certainly at least in some of them) there's an annoying voice notification which is played when the digital assistant is used as PC speaker.<br>We've understood and investigated the cause of the problem by proposing some solutions and, among these, we've seen how an ad hoc application can solve the problem.<br>We've seen how to download and install this open source application for free, and in this way we've solved the problem. We can consider this solution as 'temporary', and continue to use it until (hopefully as soon as possible) Amazon will decide to release a decent update for its digital assistants, which will eliminate this annoying and repetitive notification.
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<h2>References &#128279;</h2>
+				<h3>
+					<ul>
+						<li>A bit of programming</li>
+							<a href="https://stackoverflow.com/questions/19689054/is-it-possible-for-a-c-sharp-built-exe-to-self-delete">https://stackoverflow.com/questions/19689054/is-it-possible-for-a-c-sharp-built-exe-to-self-delete</a>
+							<br>
+							<a href="https://stackoverflow.com/questions/29326042/show-message-box-in-net-console-application">https://stackoverflow.com/questions/29326042/show-message-box-in-net-console-application</a>
+							<br><br>
+
+						<li>Desperate (and pissed off) people</li>
+							<a href="https://www.amazonforum.com/s/question/0D54P00006zStJTSA0/how-do-i-stop-alexa-from-telling-me-its-connected-to-my-phone">https://www.amazonforum.com/s/question/0D54P00006zStJTSA0/how-do-i-stop-alexa-from-telling-me-its-connected-to-my-phone</a>
+							<br>
+							<a href="https://alexa.uservoice.com/forums/906892-alexa-skills-developer-voice-and-vote/suggestions/40358071-bluetooth-brief-mode-turns-off-device-connection">https://alexa.uservoice.com/forums/906892-alexa-skills-developer-voice-and-vote/suggestions/40358071-bluetooth-brief-mode-turns-off-device-connection</a>
+							<br>
+							<a href="https://forums.developer.amazon.com/questions/8651/disable-bluetooth-now-connected-to-message.html">https://forums.developer.amazon.com/questions/8651/disable-bluetooth-now-connected-to-message.html</a>
+							<br>
+							<a href="https://www.reddit.com/r/amazonecho/comments/cmdlk5/any_way_to_make_alexa_stop_saying_connected_to/">https://www.reddit.com/r/amazonecho/comments/cmdlk5/any_way_to_make_alexa_stop_saying_connected_to/</a>
+							<br>
+							<a href="https://www.echotalk.org/index.php?topic=326.0">https://www.echotalk.org/index.php?topic=326.0</a>
+							<br><br>
+							
+						<li>Windows</li>
+							<a href="https://stackoverflow.com/questions/35362303/which-net-version-does-windows-10-have-built-in">https://stackoverflow.com/questions/35362303/which-net-version-does-windows-10-have-built-in</a>
+							<br>
+							<a href="https://www.microsoft.com/it-it/download/details.aspx?id=55167">https://www.microsoft.com/it-it/download/details.aspx?id=55167</a>
+							<br>
+							<a href="https://www.windowscentral.com/how-quickly-check-net-framework-version-windows-10">https://www.windowscentral.com/how-quickly-check-net-framework-version-windows-10</a>
+							<br><br>
+							
+						<li>AntiAlexa</li>
+							<a href="https://github.com/LucaBarile/AntiAlexa">https://github.com/LucaBarile/AntiAlexa</a>
+							<br>
+							<a href="https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/bin/Debug/AntiAlexa.exe">https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/bin/Debug/AntiAlexa.exe</a>
+							<br>
+							<a href="https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/Program.cs">https://github.com/LucaBarile/AntiAlexa/blob/main/AntiAlexa/AntiAlexa/Program.cs</a>
+					</ul>
+				</h3>
+				
+				<br>
+				<hr>
+				
+				<h3 align="center">
+					<i>If you liked this article, what do you think about buying me a unicorn? <a href="https://www.buymeacoffee.com/LucaBarile">Yeees! I'll buy it for you!</a></i> &#129412;
+				</h3>
+
+			</p>
+		</div>
+	</body>
+</html>
