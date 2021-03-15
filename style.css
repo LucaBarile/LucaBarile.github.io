@@ -1,13 +1,30 @@
-/* necessary to use percentages to size images */
+/*
+	Responsive through CSS Media Queries
+	
+	Big screen or with high resolution
+	@media all and (max-width: 1690px) { ... }
+
+	Desktop screen or laptop
+	@media all and (min-width: 1280px) and (max-width: 1689px) { ... }
+
+	Tablet in landscape mode
+	@media all and (min-width: 737px) and (max-width: 1279px) { ... }
+
+	Tablet in portrait mode
+	@media all and (min-width: 481px) and (max-width: 736px) { ... }
+	
+	Info: https://nicholasmarmonti.com/tutorial/media-queries-css/ 
+*/
+
+/* Necessary to use percentages to size images */
 html
 {
 	height: 100%;
 }
 
-/* background image management */
+/* Background image management */
 body
 {
-	background-image: url(Background.jpg);
 	background-repeat: no-repeat;
 	background-attachment: fixed;
 	background-size: 100% 100%;
@@ -15,41 +32,101 @@ body
 	overflow: hidden; /* Hide scrollbars */
 }
 
-/* image-button management */
+/* Image-button management */
 img
 {
-    width: 20%;
-    height: 15%;
 	display: block;
 	position: relative;
 }
 
-/* Blog image */
-.blogImg
+/* Smartphone or small Tablet */
+@media only screen and (max-width: 480px)
 {
-	top: 5%;
-	left: 13%;
+	/* Background image management */
+	body
+	{
+		background-image: url(Background_smartphone.jpg);
+	}
+
+	/* Image-button management */
+	img
+	{
+		width: 50%;
+		height: 15%;
+	}
+
+	/* Blog image */
+	.blogImg
+	{
+		top: -10%;
+		left: 25%;
+	}
+
+	/* GitHub image */
+	.gitHubImg
+	{
+		top: 1%;
+		left: 25%;
+	}
+
+	/* AboutMe image */
+	.aboutMe
+	{
+		top: 12%;
+		left: 25%;
+	}
+
+	/* Buy Me a Coffe image */
+	.unicorn
+	{
+		top: 80%;
+		left: 25%;
+	}
 }
 
-/* GitHub image */
-.gitHubImg
+/* All other devices */
+@media only screen and (min-width: 480.01px)
 {
-	top: 10%;
-	left: 13%;
-}
+	/* Background image management */
+	body
+	{
+		background-image: url(Background_default.jpg);
+	}
 
-/* AboutMe image */
-.aboutMe
-{
-	top: 15%;
-	left: 13%;
-}
+	/* Image-button management */
+	img
+	{
+		width: 20%;
+		height: 15%;
+	}
 
-/* Buy Me a Coffe image */
-.unicorn
-{
-	top: 0%;
-	left: 85%;
-	width: 15%;
-	height: 10%;
+	/* Blog image */
+	.blogImg
+	{
+		top: 5%;
+		left: 13%;
+	}
+
+	/* GitHub image */
+	.gitHubImg
+	{
+		top: 10%;
+		left: 13%;
+	}
+
+	/* AboutMe image */
+	.aboutMe
+	{
+		top: 15%;
+		left: 13%;
+	}
+
+	/* Buy Me a Coffe image */
+	.unicorn
+	{
+		top: 0%;
+		left: 85%;
+		width: 15%;
+		height: 10%;
+	}
 }
