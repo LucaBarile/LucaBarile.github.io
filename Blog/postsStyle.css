@@ -27,3 +27,21 @@ img
 	margin-left: auto;
 	margin-right: auto;
 }
+
+/* center the video horizontally and vertically (padding-left=padding-right=25%) */
+video
+{
+    width: 50%;
+    height: auto;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+	border: 2px solid deepSkyBlue;
+}
+
+/* style for the code snippets - https://www.w3schools.com/colors/colors_hsl.asp */
+code
+{ 
+    background: hsl(180, 8%, 20%); /* Hue, Saturation, Lightness */
+	color: dodgerblue; /* https://www.w3.org/wiki/CSS/Properties/color/keywords */
+}
