@@ -17,7 +17,7 @@
 		
 		<link rel="stylesheet" href="../../postsStyle.css">
 		
-		<title>ZDI-CAN-16318</title>
+		<title>ZDI-CAN-16318 (ARB_RW)</title>
     
 	</head>
 
@@ -209,7 +209,7 @@
 				<a name="par6"></a>
 				<h2>From /hex parameter to Arbitrary File Write* primitive &#128161;</h2>
 				<h3>
-					You may have noticed the asterisk next to Write, this means that it's possible to obtain an Arbitrary File Write primitive <u>with partial control over the contents of the written\overwritten file</u>, just like in <a href="file:///D:/Sito%20Web/Blog/cve-2022-0001/lpe/index.html#par9" target="_blank" rel="noopener noreferrer">this</a> case with the <i>/debug</i> parameter.<br>
+					You may have noticed the asterisk next to Write, this means that it's possible to obtain an Arbitrary File Write primitive <u>with partial control over the contents of the written\overwritten file</u>, just like in <a href="../lpe/index.html#par9" target="_blank" rel="noopener noreferrer">this</a> case with the <i>/debug</i> parameter.<br>
 					The idea used to obtain the Arbitrary File Write* primitive is very similar to the one used to obtain the Arbitrary File Read primitive previously described but, in this case, the symbolic link to the file to be read points to a file whose contents (converted to hexadecimal format) will be written in the file we want to write (or overwrite), while the symbolic link from <i>\RPC Control\Target.txt.txt</i> points to the file we want to write (or overwrite).<br>
 					<br>
 					Let's take a practical examples!<br>
