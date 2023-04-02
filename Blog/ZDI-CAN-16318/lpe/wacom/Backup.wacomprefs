@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root type="map">
+  <Metadata type="map">
+    <Created type="string">Sun Dec 26 03:12:05 2021</Created>
+    <Name type="map">
+      <PenFile type="string">C:\Users\StandardUser\AppData\Roaming\WTablet\Wacom_Tablet.dat</PenFile>
+      <TouchFile type="string">C:\Users\StandardUser\AppData\Roaming\WTablet\WacomTouch.xml</TouchFile>
+    </Name>
+    <Version type="map">
+      <PenFile type="string">6.3.45-1</PenFile>
+      <TouchFile type="string">6.3.45-1</TouchFile>
+    </Version>
+  </Metadata>
+  <PenFile type="map">
+    <CPLLastApp type="integer">0</CPLLastApp>
+    <CPLLastPosition type="map">
+      <X type="integer">-1</X>
+      <Y type="integer">-1</Y>
+      <Z type="integer">0</Z>
+    </CPLLastPosition>
+    <CPLLastTabPane type="integer">0</CPLLastTabPane>
+    <CPLOpened type="string">Never</CPLOpened>
+    <Created type="string">Sun Dec 26 03:12:04 2021</Created>
+    <DisplayAsserts type="bool">false</DisplayAsserts>
+    <DisplayBrightness type="integer">6</DisplayBrightness>
+    <DriverOn1Off0 type="bool">true</DriverOn1Off0>
+    <ImportFileVersion type="integer">6</ImportFileVersion>
+    <LeftHandedMouse type="bool">false</LeftHandedMouse>
+    <LongPressTouchKeys type="bool">false</LongPressTouchKeys>
+    <NoStartWarnings type="integer">0</NoStartWarnings>
+    <OSInterface type="map">
+      <ApplicationMap type="map">
+        <AppID0 type="map">
+          <ApplicationLongName type="string"/>
+          <ApplicationName type="string">All</ApplicationName>
+          <ApplicationRemoved type="bool">false</ApplicationRemoved>
+          <ApplicationSecondaryId type="string"/>
+          <ApplicationSeen type="bool">false</ApplicationSeen>
+        </AppID0>
+      </ApplicationMap>
+      <ClickSound type="bool">false</ClickSound>
+      <ShowOSFeedback type="bool">true</ShowOSFeedback>
+    </OSInterface>
+    <ShowSystemTrayIcon type="bool">true</ShowSystemTrayIcon>
+    <SideSwitchPressAndTap type="bool">false</SideSwitchPressAndTap>
+    <TabletArray type="array"/>
+    <TabletAwareApplicationInterface type="map">
+      <NormalizedMaxPressure type="integer">32767</NormalizedMaxPressure>
+    </TabletAwareApplicationInterface>
+    <WindowsInterface type="map">
+      <OnScreenInterface type="map">
+        <Panels type="array"/>
+      </OnScreenInterface>
+      <ScreenMacroInterface type="map">
+        <PopUpFontName type="string"/>
+        <PopUpFontSize type="integer">12</PopUpFontSize>
+        <PopUpUseAppMenu type="bool">false</PopUpUseAppMenu>
+      </ScreenMacroInterface>
+    </WindowsInterface>
+  </PenFile>
+  <TouchFile type="map">
+    <TDManager type="map">
+      <AdvancedGesturesEnabled type="bool">true</AdvancedGesturesEnabled>
+      <GesturesEnabled type="bool">true</GesturesEnabled>
+      <GesturesF1F2TimeoutMS type="integer">400</GesturesF1F2TimeoutMS>
+      <GesturesPanScrollHysteresisMM type="integer">3</GesturesPanScrollHysteresisMM>
+      <GesturesRotateHysteresisDeg type="integer">5</GesturesRotateHysteresisDeg>
+      <GesturesZoomHysteresisMM type="integer">10</GesturesZoomHysteresisMM>
+      <PHRCEnabled type="bool">true</PHRCEnabled>
+      <PHRCLevel type="integer">1</PHRCLevel>
+      <TAFClickF1F2TimeoutMS type="integer">500</TAFClickF1F2TimeoutMS>
+    </TDManager>
+    <TouchPrefsVersion type="integer">4</TouchPrefsVersion>
+  </TouchFile>
+  <Version type="string">1.0</Version>
+</root>

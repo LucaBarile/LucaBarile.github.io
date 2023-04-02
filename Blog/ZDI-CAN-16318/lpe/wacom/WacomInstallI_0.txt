@@ -1,0 +1,3 @@
+/debug "C:\...\target.bat" /silent
+
+start "C:\Windows\System32\cmd.exe"

@@ -1,0 +1,43 @@
+20220117,11:05:19.388 -- 06972/09812 -- [I] Sending trace to file C:\Windows\TEMP\Install-pid-6972.txt
+20220117,11:05:19.388 -- 06972/09812 -- [I] remove.exe 6.3.45-1 1/17/2022 11:5
+20220117,11:05:19.388 -- 06972/09812 -- [I] Windows OS: Windows 10 20H2, Full Edition (64-bit)
+20220117,11:05:19.388 -- 06972/09812 -- Command Line Arguments: /command UpdateRouterFilter /silent /agree
+20220117,11:05:19.388 -- 06972/09812 -- OSPlatform Windows 10 20H2, Full Edition (64-bit)
+20220117,11:05:19.388 -- 06972/09812 -- User Admin Type 1
+20220117,11:05:19.388 -- 06972/09812 -- Language is en
+20220117,11:05:19.388 -- 06972/09812 -- File is executing as Install
+20220117,11:05:19.388 -- 06972/09812 -- [IFE mode] path: C:\Windows\TEMP\WacomInstallI.txt
+20220117,11:05:19.388 -- 06972/09812 -- [IFE mode] path not found: C:\Windows\TEMP\WacomInstallI.txt
+20220117,11:05:19.390 -- 06972/09812 -- EnumerateSupportedDevices: Checking device USB\VID_80EE&PID_0021\5&18F54CB7&0&1
+20220117,11:05:19.390 -- 06972/09812 -- EnumerateSupportedDevices: Checking device USB\ROOT_HUB\4&24D6EB65&0
+20220117,11:05:19.390 -- 06972/09812 -- Processing the Command Line
+20220117,11:05:19.390 -- 06972/09812 -- Execute a command
+20220117,11:05:19.390 -- 06972/09812 -- command: UpdateRouterFilter
+20220117,11:05:19.390 -- 06972/09812 -- Silent install requested
+20220117,11:05:19.390 -- 06972/09812 -- look here first - xmlFile: C:\Program Files\Tablet\Wacom\32\WacomTabletDefaults.xml
+20220117,11:05:19.398 -- 06972/09812 -- [E] TraceXmlError: Start tag expected, '<' not found
+20220117,11:05:19.401 -- 06972/09812 -- look here next - xmlFile: C:\Windows\system32\WacomTabletDefaults.xml
+20220117,11:05:19.401 -- 06972/09812 -- [E] TraceXmlError: failed to load external entity "file:/C:/Windows/system32/WacomTabletDefaults.xml"
+20220117,11:05:19.401 -- 06972/09812 -- xmlDocPtr: Fail
+20220117,11:05:19.401 -- 06972/09812 -- mpOEMDefaultsCtx: Fail
+20220117,11:05:19.401 -- 06972/09812 -- Processing the Command Line
+20220117,11:05:19.401 -- 06972/09812 -- [I] CSignalMutex::Create (0x2654) Global\WacInstallerRunningMutex
+20220117,11:05:19.401 -- 06972/09812 -- Using mCommand UpdateRouterFilter; ink yes, TE no, 64 yes
+20220117,11:05:19.409 -- 06972/09812 -- DoWork
+20220117,11:05:19.409 -- 06972/09812 -- Executing steps for group UpdateRouterFilter
+20220117,11:05:19.412 -- 06972/09812 -- Instruction SetDefaultDebugFilePath
+20220117,11:05:19.412 -- 06972/09812 -- Instruction IsComment
+20220117,11:05:19.412 -- 06972/09812 -- # Updating wacomrouterfilter...
+20220117,11:05:19.412 -- 06972/09812 -- Instruction Execute
+20220117,11:05:19.412 -- 06972/09812 -- STDisableRedirect: GetProcAddress of Wow64EnableWow64FsRedirection
+20220117,11:05:19.412 -- 06972/09812 -- File C:\Program Files\Tablet\DevInst.exe, Params CopyOEMInf wacomrouterfilter.inf, pause 100
+20220117,11:05:19.730 -- 06972/09812 -- , Ran Yes 0
+20220117,11:05:19.730 -- 06972/09812 -- , waiting for finish...
+20220117,11:05:19.903 -- 06972/09812 -- , Done 0
+20220117,11:05:20.021 -- 06972/09812 -- Instruction InstallRouterFilter
+20220117,11:05:20.021 -- 06972/09812 -- InstallRouterFilter: C:\Program Files\Tablet\wacomrouterfilter.inf
+20220117,11:05:20.021 -- 06972/09812 -- Instruction DONE
+20220117,11:05:20.021 -- 06972/09812 -- [Response Result]
+20220117,11:05:20.021 -- 06972/09812 -- Resultcode=0
+20220117,11:05:20.021 -- 06972/09812 -- [IFE mode] writing return result: 0, to file: C:\Windows\TEMP\WacomInstallO.txt
+20220117,11:05:20.021 -- 06972/09812 -- ClearControls

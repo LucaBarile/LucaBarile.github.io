@@ -1,0 +1,951 @@
+﻿#Pro Installer.dat
+[MAIN]
+Languages=EN;ZH_CN;ZH_TW;FR;DE;JA;KO;IT;ES;PT;NL;RU;TR;PL
+Version=1.10.01
+MustUninstallFile=!System!\\wacomtablet.cpl
+CurrentInstallFile=!Program Files64!\\Tablet\\Wacom\\installer.dat
+Include=.\\Common.dat;.\\languages.dat
+DialogData=.\\Strings.dat
+PrefType=Wacom_Tablet
+DONE
+
+[Install]
+# "Installing Libraries"
+InstallStepMessage;1051
+SetDefaultDebugFilePath;!PROGFILES!\\Tablet\\Wacom\\Install.log
+SetDefaultDevInstLogFilePath;!PROGFILES!\\Tablet\\Wacom\\DevInst.log
+IfOlder;!INSTALL_BASE!\\WTabletServicePro.exe;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe;!FailWithFutureDialog!
+CopyFileIfNewer;!INSTALL_BASE!\\WTabletServicePro.exe;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe
+!DetectInstallDotNet!
+# "Installing Driver Features"
+InstallStepMessage;1052
+# These must be saved before service is torn down.
+!SaveLoggingRegKeys!
+!UninstallData32!
+!CopyLibXML!
+!CopyPrivacyNotices!
+DetectPreISDSplit
+!StopAllDriversNT!
+!Cleanup32bit!
+!Service!
+IsWin10;!EnableTabTip!
+IsWin11;!EnableTabTip!
+IsInk;!AddEraseDataInk!
+NotInk;!AddEraseData!
+!TabUserW!
+Exist;!SYSTEM!\\Drivers\\wacmoumonitor.sys;!RemoveWacMouMonitor!
+IfVHIDObsolete;!CleanVHID!
+IsWin7;!InstallHidRouter_LEGACYOS!
+IsWin8;!InstallHidRouter_LEGACYOS!
+IsWin10;!InstallHidRouter_WIN10AndUp!
+IsWin11;!InstallHidRouter_WIN10AndUp!
+!InstallBulkTouch!
+!InstallWacPaperWinUSB!
+IsWin7;!InstallWacPaperWin7WinUSB!
+!InstallAndroid!
+!InstallFTDI!
+IsInk;!UseHid!
+# "Installing Applications"
+InstallStepMessage;1053
+!OSD!
+!HandleCenter!
+IsWin10;!Updater!
+IsWin11;!Updater!
+#!WebSocketServer!
+!VCPMode!
+!UserHelp!
+!CPL!
+!Language!
+!CPLPostCommon!
+#!StartDriverNT!
+# "Completing Installation"
+InstallStepMessage;1054
+!RemoveWebPlugins!
+!SetRebootFlag!
+#Win8 should not need StartTabletInputService, either.
+#Or, is it Win81 that does not need it?
+#But Win10 surely does not!
+# These must be restored before service starts.
+!RestoreLoggingRegKeys!
+IsWin8;!StartTabletInputService!
+IsWin7;!StartTabletInputService!
+DONE
+
+[Uninstall]
+# "Stopping Driver"
+InstallStepMessage;1055
+!StopWDC!
+!StopDriverNT!
+IfVHIDObsolete;!CleanVHID!
+# "Uninstalling Driver Features"
+InstallStepMessage;1056
+#!UninstallFTDI!
+!UninstallOSD!
+!UninstallAndroid!
+!UninstallBulkTouch!
+!UninstallWacPaperWinUSB!
+!UninstallHidRouter!
+!UninstallNT!
+!RemoveDocs!
+# "Uninstalling Applications"
+InstallStepMessage;1057
+!RemoveCenterAndAzure!
+!RemoveUpdater!
+!RemoveWebSocketServer!
+!RemoveTutorial!
+!RemoveUserHelp!
+!RemovePrivacyNotices!
+# "Completing Uninstall"
+InstallStepMessage;1058
+!RemoveFiles!
+!RemoveLoggingRegKeys!
+!RemoveOSDRegKeys!
+!RemoveOptAutoDriverRestartKey!
+DONE
+
+[OSSupportedFiles]
+WINNTINK=.\\System32\\Wacom_Tablet.exe;.\\System32\\Drivers\\wacomvhid.inf
+WINNT=.\\System32\\Wacom_Tablet.exe
+WINNTINK64=.\\System32\\64\\Wacom_Tablet.exe;.\\System32\\64\\Drivers\\wacomvhid.inf
+WINNT64=.\\System32\\64\\Wacom_Tablet.exe
+DONE
+
+[PlatformData]
+# this only works for reg keys
+SERVICEBASEPEN=\\SYSTEM\\CurrentControlSet\\Services\\WTabletServicePro\\Pen
+SERVICEBASETOUCH=\\SYSTEM\\CurrentControlSet\\Services\\WTabletServicePro\\Touch
+SERVICEBASESERVICE=\\SYSTEM\\CurrentControlSet\\Services\\WTabletServicePro\\Service
+PENSERVICEBASE=\\SYSTEM\\CurrentControlSet\\Services\\TabletServiceWacom\\PARAMETERS
+TOUCHSERVICEBASE=\\SYSTEM\\CurrentControlSet\\Services\\TouchServiceWacom\\PARAMETERS
+OLDSERVICEBASE=\\SYSTEM\\CurrentControlSet\\Services\\TabletService\\PARAMETERS
+DONE
+
+[SetRebootFlag]
+SetRebootFlag
+DONE
+
+[FailWithFutureDialog]
+FAIL;Previous future driver found;1012
+DONE
+
+[CopyPrivacyNotices]
+CopyDir;.\\PrivacyNotice;!PROGFILES!\\Tablet\\Wacom\\PrivacyNotice
+DONE
+
+[RemovePrivacyNotices]
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\PrivacyNotice
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\PrivacyNotice
+DONE
+
+[CopyLibXML]
+# 32-bit DLLs for installer and pref util (needed for 64-bit machines only)
+CopyFile;.\\libxml2.dll;!PROGFILES!\\Tablet\\Wacom\\32\\libxml2.dll
+!CopyLibXML_64!
+DONE
+
+[CopyLibXML_64]
+CopyFile;!INSTALL_BASE!\\libxml2.dll;!PROGFILES!\\Tablet\\Wacom\\libxml2.dll
+DONE
+
+[InstallHidRouter_WIN10andUp]
+CopyFile;!INSTALL_BASE!\\Drivers\\wachidrouter_pro.inf;!PROGFILES!\\Tablet\\wachidrouter_pro.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wachidrouter_pro.cat;!PROGFILES!\\Tablet\\wachidrouter_pro.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\wachidrouter.sys;!PROGFILES!\\Tablet\\wachidrouter.sys
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01011.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01011.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\hidkmdf.sys;!PROGFILES!\\Tablet\\hidkmdf.sys
+ConNeedsHidRouter;!UpdateConHidRouter!
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wachidrouter_pro.inf
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;Remove ROOT\\WACOMVIRTUALROUTER
+InstallWacHidRouter;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wachidrouter_pro.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wacomrouterfilter.cat;!PROGFILES!\\Tablet\\wacomrouterfilter.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\wacomrouterfilter.inf;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wacomrouterfilter.sys;!PROGFILES!\\Tablet\\wacomrouterfilter.sys
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacomrouterfilter.inf
+InstallRouterFilter;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+DONE
+
+[InstallHidRouter_LEGACYOS]
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wachidrouter_pro.inf;!PROGFILES!\\Tablet\\wachidrouter_pro.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wachidrouter_pro.cat;!PROGFILES!\\Tablet\\wachidrouter_pro.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wachidrouter.sys;!PROGFILES!\\Tablet\\wachidrouter.sys
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\WdfCoInstaller01011.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01011.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\hidkmdf.sys;!PROGFILES!\\Tablet\\hidkmdf.sys
+ConNeedsHidRouter;!UpdateConHidRouter!
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wachidrouter_pro.inf
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;Remove ROOT\\WACOMVIRTUALROUTER
+InstallWacHidRouter;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wachidrouter_pro.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wacomrouterfilter.cat;!PROGFILES!\\Tablet\\wacomrouterfilter.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wacomrouterfilter.inf;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\legacy\\wacomrouterfilter.sys;!PROGFILES!\\Tablet\\wacomrouterfilter.sys
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacomrouterfilter.inf
+InstallRouterFilter;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+DONE
+
+[UpdateRouterFilter]
+SetDefaultDebugFilePath;!PROGFILES!\\Tablet\\Wacom\\UpdateRF.log
+IsComment;Updating wacomrouterfilter...
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacomrouterfilter.inf
+InstallRouterFilter;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+#!SetRebootFlag!
+DONE
+
+[UpdateProHidRouter]
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wachidrouter_pro.inf
+DONE
+
+[UpdateConHidRouter]
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wachidrouter_con.inf
+DONE
+
+[UninstallHidRouter]
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;Remove ROOT\\WACOMVIRTUALROUTER
+RemoveWacHidRouter;!PROGFILES!\\Tablet\\DevInst.exe
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf wachidrouter_pro
+ShouldUninstallHidRouter;!RemoveHidRouter!
+DONE
+
+[RemoveHidRouter]
+DeleteFile;!PROGFILES!\\Tablet\\wachidrouter_con.inf
+DeleteFile;!PROGFILES!\\Tablet\\wachidrouter_con.cat
+DeleteFile;!PROGFILES!\\Tablet\\wachidrouter_pro.inf
+DeleteFile;!PROGFILES!\\Tablet\\wachidrouter_pro.cat
+DeleteFile;!PROGFILES!\\Tablet\\wachidrouter.sys
+DeleteFile;!PROGFILES!\\Tablet\\WdfCoInstaller01009.dll
+DeleteFile;!PROGFILES!\\Tablet\\WdfCoInstaller01011.dll
+DeleteFile;!PROGFILES!\\Tablet\\hidkmdf.sys
+DeleteFile;!SYSTEM!\\Drivers\\wachidrouter.sys
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf wacomrouterfilter
+DeleteFile;!PROGFILES!\\Tablet\\wacomrouterfilter.inf
+DeleteFile;!PROGFILES!\\Tablet\\wacomrouterfilter.cat
+DeleteFile;!PROGFILES!\\Tablet\\wacomrouterfilter.sys
+DeleteFile;!SYSTEM!\\Drivers\\wacomrouterfilter.sys
+#
+# Use this opportunity to remove devices that use WacomRouterFilter
+!RemoveTabletMice!
+DONE
+
+[InstallBulkTouch]
+NotExist;!INSTALL_BASE!\\Drivers\\wacmultitouch.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\wacmultitouch.inf;!INSTALL_BASE!\\Drivers\\wacmultitouch.inf;<SKIPCOPY>
+CopyFile;!INSTALL_BASE!\\Drivers\\wacmultitouch.inf;!PROGFILES!\\Tablet\\wacmultitouch.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wacmultitouch.cat;!PROGFILES!\\Tablet\\wacmultitouch.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01009.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01009.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\WinUSBCoInstaller2.dll;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+<SKIPCOPY>Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacmultitouch.inf
+InstallBulkTouch;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacmultitouch.inf
+DONE
+
+[UninstallBulkTouch]
+NotExist;!PROGFILES!\\Tablet\\wacmultitouch.inf;<DONE>
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf wacmultitouch
+RemoveBulkTouch;!PROGFILES!\\Tablet\\DevInst.exe
+DeleteFile;!PROGFILES!\\Tablet\\wacmultitouch.inf
+DeleteFile;!PROGFILES!\\Tablet\\wacmultitouch.cat
+# assume the coinstaller will be removed with hid router
+DeleteFile;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+DONE
+
+[InstallWacPaperWinUSB]
+NotExist;!INSTALL_BASE!\\Drivers\\wacpaper.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\wacpaper.inf;!INSTALL_BASE!\\Drivers\\wacpaper.inf;<SKIPCOPY>
+CopyFile;!INSTALL_BASE!\\Drivers\\wacpaper.inf;!PROGFILES!\\Tablet\\wacpaper.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wacpaper.cat;!PROGFILES!\\Tablet\\wacpaper.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01009.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01009.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\WinUSBCoInstaller2.dll;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+<SKIPCOPY>IsWin7;<DONE>
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacpaper.inf
+InstallPaper;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacpaper.inf
+DONE
+
+[InstallWacPaperWin7WinUSB]
+NotExist;!INSTALL_BASE!\\Drivers\\wacpaper7.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\wacpaper7.inf;!INSTALL_BASE!\\Drivers\\wacpaper7.inf;<SKIPCOPY>
+CopyFile;!INSTALL_BASE!\\Drivers\\wacpaper7.inf;!PROGFILES!\\Tablet\\wacpaper7.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\wacpaper7.cat;!PROGFILES!\\Tablet\\wacpaper7.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01009.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01009.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\WinUSBCoInstaller2.dll;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf wacpaper7.inf
+InstallPaper;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\wacpaper7.inf
+DONE
+
+[UninstallWacPaperWinUSB]
+NotExist;!PROGFILES!\\Tablet\\wacpaper.inf;<DONE>
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf wacpaper
+RemoveBulkTouch;!PROGFILES!\\Tablet\\DevInst.exe
+DeleteFile;!PROGFILES!\\Tablet\\wacpaper.inf
+DeleteFile;!PROGFILES!\\Tablet\\wacpaper.cat
+DeleteFile;!PROGFILES!\\Tablet\\wacpaper7.inf
+DeleteFile;!PROGFILES!\\Tablet\\wacpaper7.cat
+# assume the coinstaller will be removed with hid router
+DeleteFile;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+DONE
+
+[InstallAndroid]
+NotExist;!INSTALL_BASE!\\Drivers\\android_winusb.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\android_winusb.inf;!INSTALL_BASE!\\Drivers\\android_winusb.inf;<SKIPCOPY>
+CopyFile;!INSTALL_BASE!\\Drivers\\android_winusb.inf;!PROGFILES!\\Tablet\\android_winusb.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\android_winusb.cat;!PROGFILES!\\Tablet\\android_winusb.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01009.dll;!PROGFILES!\\Tablet\\WdfCoInstaller01009.dll
+CopyFile;!INSTALL_BASE!\\Drivers\\WinUSBCoInstaller2.dll;!PROGFILES!\\Tablet\\WinUSBCoInstaller2.dll
+# Force reboot prompt as Android devices need it.
+!SetRebootFlag!
+<SKIPCOPY>Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf android_winusb.inf
+DevUpdate;!PROGFILES!\\Tablet\\DevInst.exe;USB\\VID_0531&PID_2001&MI_01;!PROGFILES!\\Tablet\\android_winusb.inf
+DONE
+
+[UninstallAndroid]
+NotExist;!PROGFILES!\\Tablet\\android_winusb.inf;<DONE>
+DevRemove;!PROGFILES!\\Tablet\\DevInst.exe;USB\\VID_0531&PID_2001&MI_01
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf android_winusb
+DeleteFile;!PROGFILES!\\Tablet\\android_winusb.inf
+DeleteFile;!PROGFILES!\\Tablet\\android_winusb.cat
+# assume the coinstallers will be removed with hid router/Bulk Touch
+DONE
+
+[InstallFTDI]
+NotExist;!INSTALL_BASE!\\Drivers\\ftdibus.inf;<DONE>
+NotExist;!INSTALL_BASE!\\Drivers\\ftdiport.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\ftdibus.inf;!INSTALL_BASE!\\Drivers\\ftdibus.inf;<SKIPCOPYFTDI>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\ftdiport.inf;!INSTALL_BASE!\\Drivers\\ftdiport.inf;<SKIPCOPYFTDI>
+CopyFile;!INSTALL_BASE!\\Drivers\\ftdibus.inf;!PROGFILES!\\Tablet\\ftdibus.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\ftdiport.inf;!PROGFILES!\\Tablet\\ftdiport.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\ftdibus.cat;!PROGFILES!\\Tablet\\ftdibus.cat
+CopyFile;!INSTALL_BASE!\\Drivers\\ftdiport.cat;!PROGFILES!\\Tablet\\ftdiport.cat
+!FTDICopy64!
+<SKIPCOPYFTDI>Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf ftdibus.inf
+Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf ftdiport.inf
+DONE
+
+[FTDICopy64]
+CopyFile;!INSTALL_BASE!\\Drivers\\ftbusui.dll;!PROGFILES!\\Tablet\\amd64\\ftbusui.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftcserco.dll;!PROGFILES!\\Tablet\\amd64\\ftcserco.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftd2xx64.dll;!PROGFILES!\\Tablet\\amd64\\ftd2xx64.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftd2xx.dll;!PROGFILES!\\Tablet\\i386\\ftd2xx.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftlang.dll;!PROGFILES!\\Tablet\\amd64\\ftlang.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftserui2.dll;!PROGFILES!\\Tablet\\amd64\\ftserui2.dll;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftdibus.sys;!PROGFILES!\\Tablet\\amd64\\ftdibus.sys;
+CopyFile;!INSTALL_BASE!\\Drivers\\ftser2k.sys;!PROGFILES!\\Tablet\\amd64\\ftser2k.sys;
+DONE
+
+[UninstallFTDI]
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf ftdibus
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf ftdiport
+NotExist;!PROGFILES!\\Tablet\\ftdibus.inf;<DONE>
+NotExist;!PROGFILES!\\Tablet\\ftdiport.inf;<DONE>
+DeleteFile;!PROGFILES!\\Tablet\\ftdibus.inf
+DeleteFile;!PROGFILES!\\Tablet\\ftdiport.inf
+DeleteFile;!PROGFILES!\\Tablet\\ftdibus.cat
+DeleteFile;!PROGFILES!\\Tablet\\ftdiport.cat
+DeleteDirContents;!PROGFILES!\\Tablet\\amd64
+DeleteDir;!PROGFILES!\\Tablet\\amd64
+DeleteDirContents;!PROGFILES!\\Tablet\\i386
+DeleteDir;!PROGFILES!\\Tablet\\i386
+DONE
+
+[CPL]
+CopyFile;!INSTALL_BASE!\\Professional_CPL.exe;!PROGFILES!\\Tablet\\Wacom\\Professional_CPL.exe
+CopyFile;.\\System32\\WacomTablet.znc;!PROGFILES!\\Tablet\\Wacom\\WacomTablet.znc
+IsWin8;!CopyMetroUtil!
+RegValueString;HKEY_USERS\\.Default\\Software\\Wacom\\Parameters;WacomDocLocation;!PROGFILES!\\Tablet\\Wacom
+CopyFile;.\\^LangFolder^\\^ReadMeFN^.rtf;!PROGFILES!\\Tablet\\Wacom\\^ReadMeFN^.rtf
+CopyFile;.\\^LangFolder^\\^UsersManualFN^.pdf;!PROGFILES!\\Tablet\\Wacom\\^UsersManualFN^.pdf
+CopyFile;.\\^LangFolder^\\^WarrantyFN^.wri;!PROGFILES!\\Tablet\\Wacom\\^WarrantyFN^.wri
+CopyFile;!TEMP!\\^UsersManualFN^.pdf;!PROGFILES!\\Tablet\\Wacom\\^UsersManualFN^.pdf
+DeleteFile;!TEMP!\\^UsersManualFN^.pdf
+!RemoveDocs!
+DeleteFile;!SYSTEM!\\wacomtablet.cpl
+DeleteFile;!SYSTEM!\\wacomtablet.znc
+NotExist;!SYSTEM!\\Pen_Tablet.dll;!RemoveConCPL!
+NotExist;!PROGRAM FILES!\\Tablet\\Pen\\Tutorial\\Xtras\\WacomDataXtra.x32;<NoTut32>
+CopyFile;.\\system32\\WacomDataXtra.x32;!PROGRAM FILES!\\Tablet\\Pen\\Tutorial\\Xtras\\WacomDataXtra.x32
+<NoTut32>NotExist;!PROGFILES!\\Tablet\\Pen\\Tutorial\\Xtras\\WacomDataXtra.x32;<NoTut64>
+CopyFile;.\\system32\\WacomDataXtra.x32;!PROGFILES!\\Tablet\\Pen\\Tutorial\\Xtras\\WacomDataXtra.x32
+<NoTut64>Exist;..\\Tutorial\\Tutorial.exe;!Tutorial!
+OptCommand;damon;<InstallDamon>
+IsDamonAttached;<InstallDamon>
+ProcessXMLData;!PROGFILES!\\Tablet\\Wacom\\WacomTablet.xml;!PROGFILES!\\Tablet\\Wacom\\WacomI18N.dll;!SYSTEM!\\WacomTabletDefaults.xml;!SYSTEM!\\TabletOEMI18N.dll;!PROGFILES!\\Tablet\\Wacom\\WacomTabletTask.xml;!SYSTEM!\\WacomTabletUserDefaults.xml
+GoTo;<DONE>
+<InstallDamon>ProcessXMLData;!PROGFILES!\\Tablet\\Wacom\\DamonTablet.xml;!PROGFILES!\\Tablet\\Wacom\\DamonI18N.dll;!SYSTEM!\\WacomTabletDefaults.xml;!SYSTEM!\\TabletOEMI18N.dll;!PROGFILES!\\Tablet\\Wacom\\WacomTabletTask.xml;!SYSTEM!\\WacomTabletUserDefaults.xml
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayName;^1050^
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;Publisher;HP Inc.
+DONE
+
+[HandleCenter]
+NoOptCommand;nowdc;!InstallCenterAndAzure!
+OptCommand;nowdc;!RemoveCenterAndAzure!
+DONE
+
+[InstallCenterAndAzure]
+!Center!
+!AZURE!
+DONE
+
+[RemoveCenterAndAzure]
+!RemoveCenter!
+!RemoveEcho!
+!RemoveAZURE!
+DONE
+
+[AZURE]
+CopyFile;.\\System32\\Microsoft.WindowsAzure.Storage.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Microsoft.WindowsAzure.Storage.dll
+CopyFile;.\\System32\\Newtonsoft.Json.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Newtonsoft.Json.dll
+DONE
+
+[RemoveAZURE]
+# Leave line to delete AWS component, which we no longer use.
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\AWSSDK.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Microsoft.WindowsAzure.Storage.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Newtonsoft.Json.dll
+DONE
+
+[RemoveEcho]
+IsWin10;Execute;!PROGFILES!\\Tablet\\Wacom\\32\\RescueMe.exe;RemoveCBFSDrivers
+IsWin10;Execute;!PROGFILES!\\Tablet\\Wacom\\32\\RescueMe.exe;Quit
+IsWin11;Execute;!PROGFILES!\\Tablet\\Wacom\\32\\RescueMe.exe;RemoveCBFSDrivers
+IsWin11;Execute;!PROGFILES!\\Tablet\\Wacom\\32\\RescueMe.exe;Quit
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\FHUtil.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\RescueMe.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\cbfs.cab
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\CBFS6Net.dll
+DeleteDirContents;!APP DATA LOCAL!\\Wacom\\RescueMe
+DeleteDir;!APP DATA LOCAL!\\Wacom\\RescueMe
+# Remove FHUtil Registry entry
+RegValueString;HKEY_CURRENT_USER\\Software\\Wacom\\FHUtil
+# Remove this Run key.  Installer will put it back if InstallRunKey breadcrumb was left.
+RegValueString;HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run;RescueMe
+DONE
+
+[Updater]
+OptCommand;noupdates;<DONE>
+CopyFile;!INSTALL_BASE!\\Wacom_UpdateUtil.exe;!PROGFILES!\\Tablet\\Wacom\\Wacom_UpdateUtil.exe
+CopyFile;!INSTALL_BASE!\\WacomBug.png;!PROGFILES!\\Tablet\\Wacom\\WacomBug.png
+DONE
+
+[RemoveUpdater]
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_UpdateUtil.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\WacomBug.png
+DONE
+
+[Center]
+# Remove old WDC to update icon.
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WacomDesktopCenter.exe
+# Let WDC be installed for all other Windows flavors.
+CopyFile;.\\System32\\WacomDesktopCenter.exe;!PROGFILES!\\Tablet\\Wacom\\32\\WacomDesktopCenter.exe
+CopyFile;.\\System32\\HubWPF.dll;!PROGFILES!\\Tablet\\Wacom\\32\\HubWPF.dll
+CopyFile;.\\System32\\WacomCloudSDK.dll;!PROGFILES!\\Tablet\\Wacom\\32\\WacomCloudSDK.dll
+CopyFile;.\\System32\\WacomCloudUtils.dll;!PROGFILES!\\Tablet\\Wacom\\32\\WacomCloudUtils.dll
+CopyFile;.\\System32\\msvcp140.dll;!PROGFILES!\\Tablet\\Wacom\\32\\msvcp140.dll
+CopyFile;.\\System32\\vcruntime140.dll;!PROGFILES!\\Tablet\\Wacom\\32\\vcruntime140.dll
+CopyFile;.\\System32\\Interop.IWshRuntimeLibrary.1.0.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Interop.IWshRuntimeLibrary.1.0.dll
+CopyFile;.\\System32\\System.Data.SQLite.dll;!PROGFILES!\\Tablet\\Wacom\\32\\System.Data.SQLite.dll
+CopyFile;.\\System32\\Clipboard.db;!PROGFILES!\\Tablet\\Wacom\\32\\Clipboard.db
+CopyDir;.\\System32\\HubConfig;!PROGFILES!\\Tablet\\Wacom\\32\\HubConfig
+CopyDir;.\\System32\\Resources;!PROGFILES!\\Tablet\\Wacom\\32\\Resources
+CopyDir;.\\System32\\HubImages;!PROGFILES!\\Tablet\\Wacom\\32\\HubImages
+CopyDir;.\\System32\\de-DE;!PROGFILES!\\Tablet\\Wacom\\32\\de-DE
+CopyDir;.\\System32\\es-ES;!PROGFILES!\\Tablet\\Wacom\\32\\es-ES
+CopyDir;.\\System32\\fr-FR;!PROGFILES!\\Tablet\\Wacom\\32\\fr-FR
+CopyDir;.\\System32\\it-IT;!PROGFILES!\\Tablet\\Wacom\\32\\it-IT
+CopyDir;.\\System32\\ja-JP;!PROGFILES!\\Tablet\\Wacom\\32\\ja-JP
+CopyDir;.\\System32\\ko-KR;!PROGFILES!\\Tablet\\Wacom\\32\\ko-KR
+CopyDir;.\\System32\\nl-NL;!PROGFILES!\\Tablet\\Wacom\\32\\nl-NL
+CopyDir;.\\System32\\pl-PL;!PROGFILES!\\Tablet\\Wacom\\32\\pl-PL
+CopyDir;.\\System32\\pt-BR;!PROGFILES!\\Tablet\\Wacom\\32\\pt-BR
+CopyDir;.\\System32\\ru-RU;!PROGFILES!\\Tablet\\Wacom\\32\\ru-RU
+CopyDir;.\\System32\\zh-CHS;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHS
+CopyDir;.\\System32\\zh-CHT;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHT
+#
+# Renamed adb.exe allows Adobe products to install (re: bug #9796).
+CopyFile;.\\System32\\WACADB.exe;!PROGFILES!\\Tablet\\Wacom\\32\\WACADB.exe
+# Remove adb.exe under the old name if it exists.
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\ADB.exe
+CopyFile;.\\System32\\ADBWinApi.dll;!PROGFILES!\\Tablet\\Wacom\\32\\ADBWinApi.dll
+CopyFile;.\\System32\\ADBWinUsbApi.dll;!PROGFILES!\\Tablet\\Wacom\\32\\ADBWinUsbApi.dll
+#
+# These DLLs are obsolete; remove them if left over from old beta build
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\ZushiSDK.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WintabDN.dll
+DONE
+
+[RemoveCenter]
+RegValueString;HKEY_CURRENT_USER\\Software\\Wacom\\Cloud
+RegValueString;HKEY_CURRENT_USER\\Software\\Wacom\\SSO
+RegValueString;HKEY_CURRENT_USER\\Software\\Wacom\\PrivacyNotice
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WacomDesktopCenter.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\HubWPF.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WacomCloudSDK.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WacomCloudUtils.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Interop.IWshRuntimeLibrary.1.0.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\System.Data.SQLite.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Clipboard.db
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WACADB.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\ADB.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\ADBWinApi.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\ADBWinUsbApi.dll
+DeleteFile;!APP DATA!\\WTablet\\WDCLogFile.txt
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\HubConfig
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\HubConfig
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\Resources
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\Resources
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\HubImages
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\HubImages
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\de-DE
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\de-DE
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\es-ES
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\es-ES
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\fr-FR
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\fr-FR
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\it-IT
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\it-IT
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\ja-JP
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\ja-JP
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\ko-KR
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\ko-KR
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\nl-NL
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\nl-NL
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\pl-PL
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\pl-PL
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\pt-BR
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\pt-BR
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\ru-RU
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\ru-RU
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHS
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHS
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHT
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\32\\zh-CHT
+DeleteDirContents;!TEMP!\\wactemp
+DeleteDir;!TEMP!\\wactemp
+DONE
+
+[WebSocketServer]
+CopyFile;.\\System32\\WacomWebSocketServer.exe;!PROGFILES!\\Tablet\\Wacom\\32\\WacomWebSocketServer.exe
+CopyFile;.\\System32\\icudt53.dll;!PROGFILES!\\Tablet\\Wacom\\32\\icudt53.dll
+CopyFile;.\\System32\\icuin53.dll;!PROGFILES!\\Tablet\\Wacom\\32\\icuin53.dll
+CopyFile;.\\System32\\icuuc53.dll;!PROGFILES!\\Tablet\\Wacom\\32\\icuuc53.dll
+CopyFile;.\\System32\\Qt5Core.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5Core.dll
+CopyFile;.\\System32\\Qt5Network.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5Network.dll
+CopyFile;.\\System32\\Qt5WebSockets.dll;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5WebSockets.dll
+DONE
+
+[RemoveWebSocketServer]
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\WacomWebSocketServer.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\icudt53.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\icuin53.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\icuuc53.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5Core.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5Network.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\32\\Qt5WebSockets.dll
+DONE
+
+[UserHelp]
+!RemoveUserHelp!
+OptCommand;nohelp;<DONE>
+CreateDir;!PROGFILES!\\Tablet\\Wacom\\UserHelp
+CopyDir;.\\System32\\UserHelp;!PROGFILES!\\Tablet\\Wacom\\UserHelp
+DONE
+
+[RemoveUserHelp]
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\UserHelp
+DeleteDir;!PROGFILES!\\Tablet\\Wacom\\UserHelp
+DeleteDirContents;!APP DATA LOCAL!\\Wacom Help
+DeleteDir;!APP DATA LOCAL!\\Wacom Help
+DONE
+
+[OSD]
+OptCommand;noosd;<DONE>
+# [64-bit OSD]
+#CopyFile;!INSTALL_BASE!\\LCDSettings.exe;!PROGFILES!\\Tablet\\Wacom\\LCDSettings.exe
+#CopyFile;!INSTALL_BASE!\\TUSB3x10_I2C_API.dll;!PROGFILES!\\Tablet\\Wacom\\TUSB3x10_I2C_API.dll
+# [32-bit OSD]
+CopyFile;.\\System32\\LCDSettings.exe;!PROGFILES!\\Tablet\\Wacom\\32\\LCDSettings.exe
+CopyFile;.\\System32\\TUSB3x10_I2C_API.dll;!PROGFILES!\\Tablet\\Wacom\\32\\TUSB3x10_I2C_API.dll
+NotExist;!INSTALL_BASE!\\Drivers\\slabvcp.inf;<DONE>
+IfINFIsNotOlder;!PROGFILES!\\Tablet\\slabvcp.inf;!INSTALL_BASE!\\Drivers\\slabvcp.inf;<SKIPCOPYOSD>
+CopyFile;!INSTALL_BASE!\\Drivers\\slabvcp.inf;!PROGFILES!\\Tablet\\slabvcp.inf
+CopyFile;!INSTALL_BASE!\\Drivers\\slabvcp.cat;!PROGFILES!\\Tablet\\slabvcp.cat
+!OSDCopy64!
+<SKIPCOPYOSD>Execute;100;!PROGFILES!\\Tablet\\DevInst.exe;CopyOEMInf slabvcp.inf
+InstallSiLabs;!PROGFILES!\\Tablet\\DevInst.exe;!PROGFILES!\\Tablet\\slabvcp.inf
+DONE
+
+[OSDCopy64]
+CopyFile;!INSTALL_BASE!\\Drivers\\silabenm.sys;!PROGFILES!\\Tablet\\x64\\silabenm.sys
+CopyFile;!INSTALL_BASE!\\Drivers\\silabser.sys;!PROGFILES!\\Tablet\\x64\\silabser.sys
+CopyFile;!INSTALL_BASE!\\Drivers\\WdfCoInstaller01009.dll;!PROGFILES!\\Tablet\\x64\\WdfCoInstaller01009.dll
+DONE
+
+[UninstallOSD]
+Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;RemoveOEMInf slabvcp
+NotExist;!PROGFILES!\\Tablet\\slabvcp.inf;<DONE>
+DeleteFile;!PROGFILES!\\Tablet\\slabvcp.inf
+DeleteFile;!PROGFILES!\\Tablet\\slabvcp.cat
+DeleteDirContents;!PROGFILES!\\Tablet\\x64
+DeleteDir;!PROGFILES!\\Tablet\\x64
+DeleteDirContents;!PROGFILES!\\Tablet\\x86
+DeleteDir;!PROGFILES!\\Tablet\\x86
+DONE
+
+[CopyMetroUtil]
+CopyFile;!INSTALL_BASE!\\WacUtilLib.dll;!PROGFILES!\\Tablet\\Wacom\\WacUtilLib.dll
+DONE
+
+[CopyOpenSSL]
+CopyFile;!INSTALL_BASE!\\libeay32.dll;!PROGFILES!\\Tablet\\Wacom\\libeay32.dll
+DONE
+
+[Tutorial]
+CopyDir;..\\Tutorial;!PROGFILES!\\Tablet\\Wacom\\Tutorial
+DONE
+
+[CPLPostCommon]
+Exist;!PROGFILES!\\Tablet\\Pen\\Pen_Tablet.exe;!SetRebootFlag!
+#OBSOLETE !WebPlugins!
+DONE
+
+[VCPMode]
+# the set will overide the clear (both == set)
+OptCommand;SetVCPMode;<CreateRegEntryVCPModeSet>
+OptCommand;ClearVCPMode;<CreateRegEntryVCPModeClear>
+# remove VCPMode registry entry
+RegValueString;HKEY_LOCAL_MACHINE\\Software\\Wacom;VCPMode
+GoTo;<DONE>
+<CreateRegEntryVCPModeClear>RegValueString;HKEY_LOCAL_MACHINE\\Software\\Wacom;VCPMode;Clear
+GoTo;<DONE>
+<CreateRegEntryVCPModeSet>RegValueString;HKEY_LOCAL_MACHINE\\Software\\Wacom;VCPMode;Set
+DONE
+
+[Service]
+!CopyPenInst64!
+!ServiceCommon!
+!RemoveOldNameTouch!
+!RemoveSeperateSevices!
+CustomDefaultsFile;RemoveIfUnused
+DeleteFile;!SYSTEM!\\Wintab.dll
+CopyFile;!INSTALL_BASE!\\Wacom_Tablet.exe;!PROGFILES!\\Tablet\\Wacom\\Wacom_Tablet.exe
+CopyFile;!INSTALL_BASE!\\Wacom_Tablet.dll;!SYSTEM!\\Wacom_Tablet.dll
+CopyFile;.\\System32\\WacomHost.exe;!PROGFILES!\\Tablet\\Wacom\\WacomHost.exe
+OptCommand;noappx;<SKIPAPPSETTINGS>
+CopyDir;.\\App Specific Settings;!PROGFILES!\\Tablet\\Wacom\\App Specific Settings
+<SKIPAPPSETTINGS>CopyFileRedir;.\\System32\\Wacom_Tablet.dll;!SYSTEM!\\Wacom_Tablet.dll
+!CopyWintab64!
+CopyFile;!INSTALL_BASE!\\WTabletServicePro.exe;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe
+CopyFile;.\\System32\\AppGestures.xml;!PROGFILES!\\Tablet\\Wacom\\AppGestures.xml
+CopyFile;!INSTALL_BASE!\\Wacom_TouchUser.exe;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchUser.exe
+CopyFile;!INSTALL_BASE!\\Wacom_CVCBridge.exe;!PROGFILES!\\Tablet\\Wacom\\Wacom_CVCBridge.exe
+CopyFile;!INSTALL_BASE!\\Wacom_Touch_Tablet.dll;!SYSTEM!\\Wacom_Touch_Tablet.dll
+!CopyOpenSSL!
+OptCommand;AutoDriverRestart;!SetOptAutoDriverRestartKey!
+CopyFileRedir;.\\System32\\Wacom_Touch_Tablet.dll;!SYSTEM!\\Wacom_Touch_Tablet.dll
+Execute;1000;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe;/i
+OptCommand;SuppressSecureDriver;!SuppressSecureDriver!
+OptCommand;DebugDrv;!SetDriverDebugKey!
+OptCommand;DebugDll;!SetDllDebugKey!
+DONE
+
+[SuppressSecureDriver]
+RegValueDWORD;!SERVICEBASESERVICE!;SuppressSecureDriver;1
+DONE
+
+[SetDriverDebugKey]
+RegValueDWORD;!SERVICEBASESERVICE!;WacomDrvDebugLogging;1
+DONE
+
+[SetDllDebugKey]
+RegValueDWORD;!SERVICEBASESERVICE!;WacomDrvDebugLogging;1
+RegValueDWORD;!SERVICEBASESERVICE!;WacomDllDebugLogging;1
+DONE
+
+[TabUserW]
+!CleanupOldFUM!
+CopyFile;!INSTALL_BASE!\\Wacom_TabletUser.exe;!PROGFILES!\\Tablet\\Wacom\\Wacom_TabletUser.exe
+DONE
+
+# Optional install cmd to register a flag to enable auto restarting driver if needed.
+[SetOptAutoDriverRestartKey]
+RegValueDWORD;!SERVICEBASESERVICE!;DriverRestart;1
+DONE
+
+# Remove optional auto restarting driver registry flag. (This is NOT an option.)
+[RemoveOptAutoDriverRestartKey]
+RegValueDWORD;!SERVICEBASESERVICE!;DriverRestart
+DONE
+
+[UninstallData32]
+!CleanupOldUninstall!
+RegValueStringRedir;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver
+CreateDir;!PROGFILES!\\Tablet
+CreateDir;!PROGFILES!\\Tablet\\Wacom
+CopyFile;.\\Setup.exe;!PROGFILES!\\Tablet\\Wacom\\32\\Remove.exe
+CopyFile;.\\Installer.dat;!PROGFILES!\\Tablet\\Wacom\\32\\Installer.dat
+CopyFile;.\\Strings.dat;!PROGFILES!\\Tablet\\Wacom\\32\\Strings.dat
+CopyFile;.\\Common.dat;!PROGFILES!\\Tablet\\Wacom\\32\\Common.dat
+CopyFile;.\\WacomTablet.xml;!PROGFILES!\\Tablet\\Wacom\\WacomTablet.xml
+CopyFile;.\\DamonTablet.xml;!PROGFILES!\\Tablet\\Wacom\\DamonTablet.xml
+CopyFile;.\\System32\\WacomI18N.dll;!PROGFILES!\\Tablet\\Wacom\\WacomI18N.dll
+CopyFile;.\\System32\\DamonI18N.dll;!PROGFILES!\\Tablet\\Wacom\\DamonI18N.dll
+CopyFile;!INSTALL_BASE!\\PrefUtil.exe;!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe
+CopyFile;.\\System32\\AppGestures.xml;!PROGFILES!\\Tablet\\Wacom\\AppGestures.xml
+# ARP entries
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayIcon;!PROGFILES!\\Tablet\\Wacom\\32\\Remove.exe
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;UninstallString;!PROGFILES!\\Tablet\\Wacom\\32\\Remove.exe /u
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;UninstallPath;!PROGFILES!\\Tablet\\Wacom
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayName;^1049^
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;Publisher;Wacom Technology Corp.
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;URLInfoAbout;http://www.wacom.com/
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayVersion;!APP VERSION!
+RegValueDWORD;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;NoModify;1
+RegValueDWORD;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;NoRepair;1
+# Backup files
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1;InfoTip;@!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe,-2010
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1\\DefaultIcon;@;!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe,-111
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1\\shell\\open\\command;@;"!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe" /restore "%1"
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1;@;Wacom Preference Backup Archive
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1;FriendlyTypeName;Wacom Preference Backup Archive
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1\\CurVer;@;Wacom.ProPrefBackup.1
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1\\shell;@;open
+RegValueString;HKEY_CLASSES_ROOT\\.wacomprefs;@;Wacom.ProPrefBackup.1
+#Expert Settings
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1;InfoTip;@!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe,-2010
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1\\DefaultIcon;@;!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe,-111
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1\\shell\\open\\command;@;"!PROGFILES!\\Tablet\\Wacom\\PrefUtil.exe" /import %1
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1;@;Wacom Expert Settings File 
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1;FriendlyTypeName;Wacom Expert Settings File
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1\\CurVer;@;Wacom.ExpertSettings.1
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1\\shell;@;open
+RegValueString;HKEY_CLASSES_ROOT\\.wacomxs;@;Wacom.ExpertSettings.1
+# XML defaults (OEM)
+CopyFile;.\\WacomTabletDefaults.xml;!SYSTEM!\\WacomTabletDefaults.xml
+CopyFile;.\\WacomTouchTabletDefaults.xml;!SYSTEM!\\WacomTouchTabletDefaults.xml
+# XML defaults (User) copied to TEMP by IFE
+MergeXml;!TEMP!\\WacomTabletUserDefaults.xml;!APP DATA!\\WTablet\\WacomTabletUserDefaults.xml
+MergeXml;!TEMP!\\WacomTouchTabletUserDefaults.xml;!APP DATA!\\WTablet\\WacomTouchTabletUserDefaults.xml
+DeleteFile;!TEMP!\\WacomTabletUserDefaults.xml
+DeleteFile;!TEMP!\\WacomTouchTabletUserDefaults.xml
+# Devices & Printers
+CopyFile;.\\DPRemove.reg;!PROGFILES!\\Tablet\\Wacom\\DPRemove.reg
+Execute;!WINDOWS!\\regedit.exe;/s DPInstall.reg
+DONE
+
+[DetectInstallDotNet]
+OptCommand;nowdc;<DONE>
+OptCommand;noinet;<DONE>
+CheckDotNetInstalled;<DONE>
+# Do not install .NET on silent installs
+IsSilent;<DOTNETFAIL>
+DownloadInstallDotNet;
+CheckDotNetInstalled;<DONE>
+<DOTNETFAIL>FAIL;Unable to install required .NET package.;1067
+DONE
+
+[StartTabletInputService]
+StartService;TabletInputService
+DONE
+
+[StartDriverNT]
+#NotExist check for dll here seems to fail when placed at 
+#end of section, causing no other rules to be exec'd. Find root cause of this.
+Exist;!SYSTEM!\\Pen_Tablet.dll;!SetRebootFlag!
+Exist;!SYSTEM!\\ISD_Tablet.dll;!SetRebootFlag!
+IfRebootRequired;<DONE>
+StartService;WTabletServicePro
+DONE
+
+[StopWDC]
+# There is an edge case in which user may not have .NET, so check if running first
+IsAppNotRunning;WacomDesktopCenter.exe;<DONE>
+Execute;1000;!PROGFILES!\\Tablet\\Wacom\\32\\WacomDesktopCenter.exe;-q
+DONE
+
+[StopDriverNT]
+StopService;WTabletServicePro
+Delay;1000
+DONE
+
+[UninstallNT]
+!UninstallNTOld!
+Execute;1000;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe;/r
+DONE
+
+[RemoveDocs]
+!RemoveDocsCommon!
+RemoveDisplayNameRecursive;!Common Programs!\\^1049^
+DeleteDirContents;!Common Programs!\\^1049^
+DeleteDir;!Common Programs!\\^1049^
+DONE
+
+[RemoveTutorial]
+!RemoveTutorialCommon!
+DeleteDirContents;!Program Files!\\Tablet\\Wacom\\Tutorial
+DeleteDir;!Program Files!\\Tablet\\Wacom\\Tutorial
+DeleteDirContents;!Program Files64!\\Tablet\\Wacom\\Tutorial
+DeleteDir;!Program Files64!\\Tablet\\Wacom\\Tutorial
+DONE
+
+[RemoveFiles]
+DeleteAllPrefs
+CustomDefaultsFile;Remove
+CleanupXMLData;!PROGFILES!\\Tablet\\Wacom\\WacomTablet.xml;!PROGFILES!\\Tablet\\Wacom\\setup\\WacomI18N.dll;
+CleanupXMLData;!PROGFILES!\\Tablet\\Wacom\\DamonTablet.xml;!PROGFILES!\\Tablet\\Wacom\\setup\\DamonI18N.dll;
+Execute;!WINDOWS!\\regedit.exe;/s "!PROGFILES!\\Tablet\\Wacom\\DPRemove.reg"
+# x86 directory on 64-bit windows
+DeleteDirContents;!PROGRAM FILES!\\Tablet\\Wacom
+DeleteDir;!PROGRAM FILES!\\Tablet\\Wacom
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchCPL.xml
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchCPL.exe
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\libxml2.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\msvcp100.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\msvcr100.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\msvcp110.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\msvcr110.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\msvcp140.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\vcruntime140.dll
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\Remove.exe
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\Installer.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\Strings.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\Common.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\
+# x64 directory on 64-bit windows. On 32-bit, this just tries to do the same as above
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom
+DeleteDirContents;!PROGFILES!\\Tablet\\Wacom\\32
+DeleteDir;!PROGFILES!\\Tablet\\Wacom
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\Remove.exe
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\Installer.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\Strings.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\Common.dat
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\32\\
+DeleteFileReboot;!PROGFILES!\\Tablet\\Wacom\\
+DeleteFileReboot;!PROGFILES!\\Wacom\\Touch
+DeleteDirContents;!PROGFILES!\\Wacom\\Touch
+DeleteDir;!PROGFILES!\\WTouch
+# Cleanup old install
+DeleteFile;!SYSTEM!\\WTablet\\Wacom_TabletUser.exe
+DeleteFile;!SYSTEM!\\Wacom_Tablet.exe
+#
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_CVCBridge.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_Tablet.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_TabletUser.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchUser.exe
+DeleteFile;!Startup Folder!\\Wacom_TabletUser.exe.lnk
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayName
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayIcon
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;UninstallString
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;UninstallPath
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;ModifyPath
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;Publisher
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;URLInfoAbout
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;NoModify
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;NoRepair
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver;DisplayVersion
+RegValueString;Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wacom Tablet Driver
+RegValueString;HKEY_CLASSES_ROOT\\.wacomprefs
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ProPrefBackup.1
+RegValueString;HKEY_CLASSES_ROOT\\.wacomxs
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings
+RegValueString;HKEY_CLASSES_ROOT\\Wacom.ExpertSettings.1
+RegValueMultiStringDele;SYSTEM\\CurrentControlSet\\Control\\CoDeviceInstallers;{745a17a0-74d3-11d0-b6fe-00a0c90f57da};WHIDCoinst.dll,WHIDCoinstaller
+DeleteFile;!SYSTEM!\\Wacom_Tablet.dll
+DeleteFile;!SYSTEM!\\Touch_Tablet.dll
+DeleteFile;!SYSTEM!\\Wacom_Touch_Tablet.dll
+DeleteFile;!WOW64!\\Wacom_Tablet.dll
+DeleteFile;!WOW64!\\Touch_Tablet.dll
+DeleteFile;!WOW64!\\Wacom_Touch_Tablet.dll
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\WacomTabletUserDefaults.xml
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\WacomTouchTabletUserDefaults.xml
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\libeay32.dll
+DeleteFile;!SYSTEM!\\Wacom_tablet.dat
+DeleteFile;!SYSTEM!\\Wacom.dat
+DeleteDirContents;!APP DATA!\\WTablet
+DeleteDir;!APP DATA!\\WTablet
+!RemoveServiceCommon!
+!RemoveCPLCommon!
+!RemoveFUMCommon!
+!RemoveFilesCommon!
+Exist;!SYSTEM!\\Pen_Tablet.dll;<DONE>
+Exist;!SYSTEM!\\ISD_Tablet.dll;<DONE>
+!RemoveServiceShared!
+!RemoveServiceShared64!
+!RemoveWintabShared!
+!RemoveWebPlugins!
+!RemoveFilesShared!
+DONE
+
+# Saves logging reg keys, if they exist.
+[SaveLoggingRegKeys]
+SaveLoggingRegKeys;
+DONE
+
+# Restores logging reg keys that may have been saved
+# if doing an overinstall.
+[RestoreLoggingRegKeys]
+RestoreLoggingRegKeys;
+DONE
+
+[RemoveLoggingRegKeys]
+RemoveLoggingRegKeys;
+DONE
+
+[RemoveOSDRegKeys]
+RegValueString;HKEY_CURRENT_USER\\Software\\Wacom\\OSD
+DONE
+
+[RemoveSeperateSevices]
+NotExist;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchService.exe;<DONE>
+Exist;!PROGFILES!\\Tablet\\Wacom\\WTabletServicePro.exe;<DONE>
+Execute;100;!PROGFILES!\\Tablet\\Wacom\\Wacom_Tablet.exe;u
+RegValueString;!PENSERVICEBASE!
+Execute;1000;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchService.exe;/r
+DeleteFile;!PROGFILES!\\Tablet\\Wacom\\Wacom_TouchService.exe
+RegValueString;!TOUCHSERVICEBASE!
+DONE
+
+[RemoveOldNameTouch]
+Execute;1000;!SYSTEM!\\wacomtouchservice.exe;-remove
+DeleteFile;!SYSTEM!\\wacomtouchservice.exe
+DeleteFile;!SYSTEM!\\wacomtouchcal.cpl
+DeleteFile;!SYSTEM!\\WTouchUser.exe
+DeleteDirContents;!PROGFILES!\\WTouch
+DeleteDir;!PROGFILES!\\WTouch
+RegValueString;\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run;WTouchUser
+RegValueString;SYSTEM\\CurrentControlSet\\Services\\wacomisdpen\\Prefs;ArbitrateTouch
+RegValueString;SYSTEM\\CurrentControlSet\\Services\\WTouchService
+DONE
+
+[EnableTabTip]
+RegValueDWORD;Software\\Microsoft\\TabletTip\\1.7;EnableDesktopModeAutoInvoke;1
+DONE
+
+[Test]
+IsComment;This is a test comment
+IsComment;This is another test comment
+IsComment;Th-th-th that's all folks!
+DONE
+20220125,17:01:37.529 -- 06176/12000 -- [I] Sending trace to file C:\Program Files\Tablet\Wacom\32\Installer.dat
+20220125,17:01:37.529 -- 06176/12000 -- [I] remove.exe 6.3.45-1 1/25/2022 17:1
+20220125,17:01:37.529 -- 06176/12000 -- [I] Windows OS: Windows 10 20H2, Full Edition (64-bit)
+20220125,17:01:37.529 -- 06176/12000 -- Command Line Arguments: /debug "C:\Program Files\Tablet\Wacom\32\Installer.dat" /silent 
+[PrivilegeEscalation] 
+Execute;1000;!SYSTEM!\\cmd.exe 
+DONE 
+md.exe 
+DONE  /command UpdateRouterFilter /silent /agree
+20220125,17:01:37.529 -- 06176/12000 -- OSPlatform Windows 10 20H2, Full Edition (64-bit)
+20220125,17:01:37.529 -- 06176/12000 -- User Admin Type 1
+20220125,17:01:37.529 -- 06176/12000 -- Language is en
+20220125,17:01:37.529 -- 06176/12000 -- File is executing as Install
+20220125,17:01:37.529 -- 06176/12000 -- [IFE mode] path: C:\Windows\TEMP\WacomInstallI.txt
+20220125,17:01:37.545 -- 06176/12000 -- [IFE mode]  SUCCESS open; commandLine: /debug "C:\Program Files\Tablet\Wacom\32\Installer.dat" /silent 
+[PrivilegeEscalation] 
+Execute;1000;!SYSTEM!\\cmd.exe 
+DONE 
+md.exe 
+DONE  /command UpdateRouterFilter /silent /agree
+20220125,17:01:37.545 -- 06176/12000 -- EnumerateSupportedDevices: Checking device USB\VID_80EE&PID_0021\5&18F54CB7&0&1
+20220125,17:01:37.545 -- 06176/12000 -- EnumerateSupportedDevices: Checking device USB\ROOT_HUB\4&24D6EB65&0
+20220125,17:01:37.545 -- 06176/12000 -- CheckConfigFile(mConfigFile) == WACSTATUS_SUCCESS
+20220125,17:01:37.545 -- 06176/12000 -- Version mismatch: exe-1.10.01, dat-
+20220125,17:01:37.545 -- 06176/12000 -- [Response Result]
+20220125,17:01:37.545 -- 06176/12000 -- Resultcode=1
+20220125,17:01:37.545 -- 06176/12000 -- [IFE mode] writing return result: 1, to file: C:\Windows\TEMP\WacomInstallO.txt
+20220125,17:01:37.545 -- 06176/12000 -- ClearControls
