@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+<!-- <a href="" target="_blank" rel="noopener noreferrer">linkText</a> (open the link in a new tab and avoid tabnabbing) -->
+<!-- <a name="anchorName"></a> | <a href="#anchorName">link name</a> (anchor) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="Wacom Driver Local Privilege Escalation Vulnerability">
+		<meta name="keywords" content="ZDI-CAN-16318, LPE, Local Privilege Escalation, Privilege Escalation, Vulnerability, Wacom, Wacom Driver, Wacom Driver 6.3.45-1, Driver, Bug, Exploit, Security, Cybersecurity, 0-day, zero-day, Pen display, Graphics tablet, Logical vulnerability, Process Monitor, x64dbg, x32dbg, Static analysis, dynamic analysis, Write-up, Arbitrary File Write, Arbitrary File Read, POC, Proof Of Concept, SYSTEM, SYSTEM shell, NT AUTHORITY\SYSTEM, NT AUTHORITY, EOP, Elevation Of Privilege, ZDI, Zero Day Initiative, Disclosure, Responsible disclosure, Luca Barile, Fix, Patch, Temp, Temp Folder, Windows Temp folder, Impersonation, Attack, Timeline, Useful readings, WacomDesktopCenter, Wacom_Tablet, PrefUtil, Backup.wacomprefs">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../../postsStyle.css">
+		
+		<title>ZDI-CAN-16318</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<h1>Wacom Driver Local Privilege Escalation Vulnerability</h1>
+		<h2 align="center" style="color:white">ZDI-CAN-16318 (0-day)</h2>
+		
+		<div>
+			<p>
+				<h2 align="center">Table of Contents &#128220;</h2>
+				<h3>
+					<table border="1" align="center">
+						<tr>
+							<td>
+								<ol>
+									<li><a href="#par1">What's Wacom and what's the problem?</a></li>
+									<li><a href="#par2">Why Wacom?</a></li>
+									<li><a href="#par3">Starting to analyze Wacom Driver 6.3.45-1</a></li>
+									<li><a href="#par4">WacomDesktopCenter.exe is our friend</a></li>
+									<li><a href="#par5">Analysing Remove.exe</a></li>
+									<li><a href="#par6">Windows Temp folder: the source of many evils</a></li>
+									<li><a href="#par7">Let’s take stock of the situation</a></li>
+									<li><a href="#par8">Reversing Remove.exe to find other commands and parameters</a></li>
+									<li><a href="#par9">From /debug parameter to Arbitrary File Write \ Denial of Service</a></li>
+									<li><a href="#par10">Desperately looking for a way to Local Privilege Escalation</a></li>
+									<li><a href="#par11">Analyzing /command parameter</a></li>
+									<li><a href="#par12">Hunting for commands</a></li>
+									<li><a href="#par13">Installer.dat and Common.dat: two files full of commands</a></li>
+									<li><a href="#par14">Arbitrary File Write* + Installer.dat = Arbitrary Commands Injection</a></li>
+									<li><a href="#par15">Let's recap what we have just said</a></li>
+									<li><a href="#par16">Close, but no cigar</a></li>
+									<li><a href="#par17">The solution to the last problem</a></li>
+									<li><a href="#par18">The Exploit</a></li>
+									<li><a href="#par19">POC</a></li>
+									<li><a href="#par20">How to fix the vulnerability</a></li>
+									<li><a href="#par21">Th-th-th that's all folks!</a></li>
+									<li><a href="#par22">Vulnerability disclosure timeline</a></li>
+									<li><a href="#par23">Conclusion</a></li>
+									<li><a href="#par24">Useful readings and references</a></li>
+								</ol>
+							</td>
+						</tr>
+					</table>
+				</h3>	
+			</p>
+			
+			<p>
+				<a name="par1"></a>
+				<h2>What's Wacom and what's the problem? &#129300;</h2>
+				<h3>
+					<a href="https://www.wacom.com/en-it/about-wacom" target="_blank" rel="noopener noreferrer">Wacom</a> is the global leader in the pen display and graphics tablet market for creative users. It distributes many <a href="https://www.wacom.com/en-it/products" target="_blank" rel="noopener noreferrer">products</a> that need a <a href="https://www.wacom.com/en-en/support/product-support/drivers" target="_blank" rel="noopener noreferrer">driver</a> installed in the system to work properly.<br>In the latest (at the time of writing (2022-01-16)) version of the Windows driver (<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/WacomTablet_6.3.45-1" target="_blank" rel="noopener noreferrer">Wacom Driver 6.3.45-1</a>) I discovered several vulnerabilities, including one that can be exploited by a regular user (with no special privileges) to elevate its privileges to <a href="https://docs.microsoft.com/en-us/windows/win32/services/localsystem-account" target="_blank" rel="noopener noreferrer">SYSTEM</a>.
+				</h3>
+			</p>
+
+			<p>
+				<a name="par2"></a>
+				<h2>Why Wacom? &#10067;</h2>
+				<h3>
+					It was a time when, in my spare time, I was dedicating myself to the study and analysis of application <a href="https://conference.hitb.org/hitbsecconf2017ams/materials/D2T3%20-%20James%20Forshaw%20-%20Introduction%20to%20Logical%20Privilege%20Escalation%20on%20Windows.pdf" target="_blank" rel="noopener noreferrer">logical vulnerabilities</a>, looking for something different from the usual <a href="https://en.wikipedia.org/wiki/Memory_safety#Types_of_memory_errors" target="_blank" rel="noopener noreferrer">memory bugs</a>. I have been reading several <a href="https://github.com/sailay1996/awesome_windows_logical_bugs/blob/master/learning_note_bookmarks.txt" target="_blank" rel="noopener noreferrer">write-ups</a> of researchers who have found vulnerabilities of this kind, and I promised myself that, sooner or later, I’d find one too.<br>It was the last day of school before the Christmas holidays (2022-12-22) and, just before leaving the classroom, I opened the task manager (as admin) to see which applications were running under the context of SYSTEM (SYSTEM apps are good candidates to try to get a <a href="https://en.wikipedia.org/wiki/Privilege_escalation" target="_blank" rel="noopener noreferrer">LPE</a>). In the details tab of active processes, Wacom_Tablet.exe caught my attention (maybe because, besides being running under the context of SYSTEM, it had an icon? &#129300;) and, from that moment, I decided to start looking for some logical vulnerabilities in the Wacom driver.
+				</h3>
+			</p>
+		</div>
+
+		<img src="media/Wacom_Tablet.exe.png" alt="" title="Wacom_Tablet.exe caught my attention">
+		
+		<div>
+			<p>
+				<a name="par3"></a>
+				<h2>Starting to analyze Wacom Driver 6.3.45-1 &#128269;</h2>
+				<h3>
+					Although I don’t have any Wacom device, I downloaded (<a href="https://cdn.wacom.com/u/productsupport/drivers/win/professional/WacomTablet_6.3.45-1.exe" target="_blank" rel="noopener noreferrer">here</a>) and installed the driver (does this make any sense? &#128514;). After restarting the PC I listed all the Wacom's processes running under the context of SYSTEM (WTabletServicePro.exe,  Wacom_Tablet.exe and WacomHost.exe) and I started to analyze the WTabletServicePro.exe service via <a href="https://samsclass.info/126/proj/pDC5r.htm" target="_blank" rel="noopener noreferrer">dynamic analysis</a>, using my favorite tool for this type of analysis: <a href="https://docs.microsoft.com/en-us/sysinternals/downloads/procmon" target="_blank" rel="noopener noreferrer">Process Monitor</a>.<br>Unfortunately, after restarting the service, the analysis did not yield useful results, so I decided to move my attention to Wacom_Tablet.exe (maybe it was better that way because, if I found a vulnerability in the service, I would have had to reboot the system to trigger it since a regular user has no rights to restart Windows services, and I'd have preferred to be able to trigger the vulnerability without restarting the system &#129305;).<br>The question now is: how can the regular user interact with Wacom_Tablet.exe?
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par4"></a>
+				<h2>WacomDesktopCenter.exe is our friend &#128149;</h2>
+				<h3>
+					WacomDesktopCenter.exe is the application that provides the GUI and allows the user to perform different operations on its Wacom device. It runs under the context of regular user, but the hope is that some operation may trigger an application running under the context of SYSTEM (like Wacom_Tablet.exe).<br>Testing the features provided by the GUI, Backup and Restore operations were particularly interesting. The Backup operation make a local copy of the user customized device settings whereas Restore, as you can imagine, restore the customized device settings from a local backup.<br>Even if, as in my case, you don't have any Wacom device, WacomDesktopCenter allows you to backup your preferences and restore it (obviously the backup file will contain the default device configuration, without any user preference).<br>Once the backup is completed a file called <a href="wacom/Backup.wacomprefs" target="_blank" rel="noopener noreferrer">Backup.wacomprefs</a> will be created in the folder you have chosen.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/BackupAndRestore.gif" alt="" title="Backup and Restore features">
+		
+		<div>
+			<p>
+				<h3>
+					Ok but... Why are these operations, in particular the restore one, particularly interesting?<br>Analyzing WacomDesktopCenter.exe through Process Monitor (3), I found out that it assigns the management of backup and restore operations to PrefUtil.exe (which runs under a <a href="https://docs.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control" target="_blank" rel="noopener noreferrer">medium integrity level</a>), as you can see in the picture below (1).<br>I also found out that, as you are probably already guessing, the /silent parameter (2) is used to perform the restore operation without showing any window \ requiring any user interaction. In fact, without that parameter, a window will be shown to the user.
+				</h3>
+			</p>
+		</div>
+			
+		<img src="media/WacomDesktopCenter.exe.PNG" alt="" title="Analysing WacomDesktopCenter.exe">
+		
+		<div>
+			<p>
+				<h3>
+					However, the most important thing, is that, during the restore operation, a series of other processes are also involved, including Wacom_Tablet.exe (as you can see in the picture below), the process we are trying to interact with.<br>Unfortunately, analysing the operations performed by the process, I didn't find anything particularly useful but I noticed that, at some point, it triggers another process (remove.exe (2)) under the context of SYSTEM (I used the Process Monitor's underline filters to highlight processes running under the context of SYSTEM in light blue).
+				</h3>
+			</p>
+		</div>
+		
+		<a name="Wacom_Tablet"></a>
+		<img src="media/Wacom_Tablet2.exe.PNG" alt="" title="Analysing Wacom_Tablet.exe">
+		
+		<div>
+			<p>
+				<h3>
+					Remove.exe receives (1) three parameters (/command, /silent and /agree) and one command (UpdateRouterFilter); could it be that, by analyzing it, we will be able to discover something interesting? Let's try...
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par5"></a>
+				<h2>Analysing Remove.exe &#128269;</h2>
+				<h3>
+					Remove.exe performs many activities, so I have collected (in order of execution) the most interesting ones in the image below. 
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/Remove.exe.PNG" alt="" title="Analysing Remove.exe">
+		
+		<div>
+			<p>
+				<h3>
+					Let's analyze them in order
+					
+					<ol>
+						<li>Remove.exe tries to read from C:\Windows\Temp\WacomInstallI.txt but can't find it.</li>
+						<li>Remove.exe reads\writes in C:\Windows\Temp\Install-pid-6972.txt something.<br>Note: 6972 is the <a href="https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/finding-the-process-id" target="_blank" rel="noopener noreferrer">PID</a> of Remove.exe</li>
+						<li>Remove.exe creates and writes something in C:\Program Files\Tablet\Wacom\UpdateRF.log</li>
+						<li>Remove.exe deletes C:\Windows\Temp\Install-pid-6972.txt</li>
+						<li>Remove.exe writes something in C:\Windows\Temp\WacomInstallO.txt</li>
+					</ol>
+					
+					It's quite clear that Remove.exe logs the activities it's performing (which were probably triggered by /command UpdateRouterFilter /silent /agree) in the Install-pid-6972.txt temporary file and, at the end of these activities, moves the contents of such file to UpdateRF.log (the final log file) and deletes the temporary Install-pid-6972.txt file. But what Remove.exe is looking for in the WacomInstallI.txt file? And what does it write in the WacomInstallO.txt file? Could it be that, by analyzing <a href="wacom/UpdateRF.log" target="_blank" rel="noopener noreferrer">UpdateRF.log</a>, we will be able to answer these questions?
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/UpdateRF.log.PNG" alt="" title="UpdateRF.log">
+		
+		<div>
+			<p>
+				<h3>
+					UpdateRF.log helps a lot, in fact it provides us with the following valuable information.
+					
+					<ol>
+						<li>Remove.exe is actually performing activities because of /command UpdateRouterFilter /silent /agree (as we had previously assumed).<br>Line 16 told us that a silent (/silent parameter) install (of what?? &#129300;) is requested (no user interaction is required).<br>/agree means that the user doesn't have to check any 'I agree' checkbox to allow the application to proceed (I tried to run Remove.exe without this parameter and the user must give his consent (in a window that pops up) in order to allow the application to proceed).<br>/command is the parameter that precedes a command that Remove.exe must execute, in this case UpdateRouterFilter (line 15-25-27).</li>
+						<li>From the point 3 we can deduce that, since in WacomInstallO.txt the return result (i.e. the final <u>output</u>) generated by the execution of the UpdateRouterFilter command is written, in WacomInstallI.txt, will probably be written the <u>input(s)</u> for Remove.exe (probably other parameters and\or commands).</li>
+						<li>In WacomInstallO.txt the return result (i.e. the final <u>output</u>) generated by the execution of the UpdateRouterFilter command is written.</li>
+					</ol>
+					
+					We can deduce that WacomInstallI stands for WacomInstallInput and contains the input(s) for installing something, and WacomInstallO stands for WacomInstallOutput and contains the output of such installation process (which is 0 if the process ended successfully, 1 otherwise).<br>Ok... And why all this should be useful??
+				</h3>
+				
+				<a name="par6"></a>
+				<h2>Windows Temp folder: the source of many evils &#128194;&#128520;</h2>
+				<h3>
+					Thinking that a regular user doesn't have particular privileges over the <a href="https://www.thewindowsclub.com/temporary-files-folder-location-windows" target="_blank" rel="noopener noreferrer">Windows Temp folder</a> (C:\Windows\Temp) is a dangerous and wrong commonplace.<br>As you can see from the image below (and also directly from your PC) a regular user has special access to the Temp folder.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/TempFolder1.PNG" alt="" title="Special access to the Windows Temp folder">
+		
+		<div>
+			<p>
+				<h3>
+					But... What does special access mean? In <a href="https://www.techrepublic.com/article/windows-101-know-the-basics-about-ntfs-permissions/" target="_blank" rel="noopener noreferrer">this</a> page there is an exhaustive explanation but, for convenience, I transcribe only the permissions that are granted to the regular user.
+					<ul>
+						<li><u>Traverse Folder/Execute File</u>: Users can navigate through folders to reach other files or folders, even if they have no permissions for the traversed files or folders. The Traverse Folder permission takes effect only when the group or user doesn't have the Bypass Traverse Checking user right in the Group Policy snap-in. (By default, the Everyone group has the Bypass Traverse Checking user right.)</li>
+						<li><u>Create Files/Write Data</u>: The Create Files permission allows users to create files within the folder. (This permission applies to folders only.) The Write Data permission allows users to make changes to the file and overwrite existing content. (This permission applies to files only.)</li>
+						<li><u>Create Folders/Append Data</u>: This Create Folders permission allows users to create folders within a folder. (This applies to folders only.) The Append Data permission allows users to make changes to the end of the file, but they can't change, delete, or overwrite existing data. (This applies to files only.)</li>
+					</ul>
+					
+					You can check the permissions of the Windows Temp folder on your own by following the steps illustrated in the image below.<br>As you are probably already guessing, since a regular user has the permission to create and write file in the Windows Temp folder, he can create the WacomInstallI.txt file in it, and write to it special commands\parameters in order to change the Remove.exe normal behavior.<br>More generally, every process, especially if running with elevated privileges, should take into account that the user could modify or create file in the Windows Temp folder, causing possible unexpected behavior if special measures aren't taken.<br>Even today many software developers are unaware of this fact (or forget to take it into account).
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/TempFolderSpecialPermission.PNG" alt="" title="Temp folder special permissions">
+		
+		<div>
+			<p>
+				<a name="par7"></a>
+				<h2>Let’s take stock of the situation</h2>
+				<h3>
+					So far, we've gathered the following information.
+					<ol>
+						<li>If Wacom Driver is installed on the system there're some of its processes running under the context of SYSTEM, and Wacom_Tablet.exe is one of those.</li>
+						<li>A regular user can't interact directly with Wacom_Tablet.exe but can restore the customized Wacom device settings from a local backup (even if he has no device).</li>
+						<li>PrefUtil.exe is the real process that performs the restore operation, and can be triggered <u>silently</u> by a regular user, without using WacomDesktopCenter.exe, through the following command line:<br>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</li>
+						<li>During the restore operation, a series of processes are also involved, including Wacom_Tablet.exe</li>
+						<li>Wacom_Tablet.exe, among the various operations it performs, triggers Remove.exe (with these parameters: /command UpdateRouterFilter /silent /agree), which runs under the context of SYSTEM too.</li>
+						<li>Remove.exe, before executing the commands received as parameter, reads from the WacomInstallI.txt file to check if there are other commands or parameters to consider\execute.</li>
+						<li>WacomInstallI.txt should resides in C:\Windows\Temp folder but, actually, there’s no WacomInstallI.txt file in the Windows Temp folder.</li>
+						<li>A regular user has the permission to create and write file in C:\Windows\Temp, so he can create the WacomInstallI.txt file and write in it special commands\parameters in order to change the Remove.exe normal behavior.</li>
+					</ol>
+					
+					Perfect, now the situation is clear. But...<br>What are the possible commands\parameters, recognized by Remove.exe, that I can write in the WacomInstallI.txt file?<br>
+					So far, we found out three parameters (/command, /silent and /agree) and one command (UpdateRouterFilter); where can I find the others?<br>How can I use them to do something useful (from the point of view of an attacker, of course &#128520;)? 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par8"></a>
+				<h2>Reversing Remove.exe to find other commands and parameters &#128104;&#8205;&#128187;</h2>
+				<h3>
+					Before starting with the static code analysis, which usually is quite time consuming, I tried to google some information about the possible parameters\commands related to the Wacom driver, and I found an interesting page that provides developers support (<a href="http://developer-docs.wacom.com/" target="_blank" rel="noopener noreferrer">WACOM for Developers</a>).<br>There are many links and information but the most interesting pages I found are the following
+					
+					<ol>
+						<li><a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-driver" target="_blank" rel="noopener noreferrer">Tablet driver</a>: in paragraph <u>Installer Command Line Parameters</u>.</li>
+						<li><a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-installation" target="_blank" rel="noopener noreferrer">Tablet installation</a>: in paragraph <u>Run the Preferences utility from the command line</u>.</li>
+						<li><a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-customise" target="_blank" rel="noopener noreferrer">Tablet customise</a>: in paragraph <u>Configuration files - location and function</u> (peeking inside the configuration file can always help...). &#128064;</li>
+					</ol>
+					
+					As you can see there are many parameters and, for each of them, a brief description of their functionality is given.<br>Now we've a list of potential parameters (with relative description) applicable to Remove.exe but, as indicated in the pages above, they're applied to other programs; how do we know that they're also applicable to Remove.exe? Could there be others besides those listed on the pages above?<br><br>To answer these questions, and dig deeper, I run some static analysis via x32dbg (since remove.exe is a 32-bit application) debugger (which is part of the <a href="https://x64dbg.com/" target="_blank" rel="noopener noreferrer">x64dbg open source project</a>).<br>Before analyzing the assembly code generated by x32dbg, I tried to analyze all the strings references of all the Remove.exe modules (right click on the assembly code => Search for => All modules => Strings references) hoping to find some reference to some parameter. I started looking for the parameters already known (/command, /silent and /agree) and then those listed in the pages linked above.<br>I was lucky! By typing the character that identifies the parameters (/) in the search bar, I found all the parameters already known, some of those listed in the previously linked pages and others unknown.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/ParametersInRemoveModule.PNG" alt="" title="Looking for parameters in remove module" target="_blank" rel="noopener noreferrer">
+		
+		<div>
+			<p>
+				<h3>
+					Trying all the possible letters I found out, inside the remove module, all (probably) the possible parameters that are recognized by Remove.exe, and I've grouped them in the table below.<br>To check the proper recognition of each parameter I tested them one by one using the command prompt and, through Process Monitor, I was able to observe that the behavior of Remove.exe, for each of them, was different from the behavior shown by providing an unrecognized random parameter (e.g. /aaaaa).<br>UpdateRF.log provides another confirmation of this fact, showing in the logs different behaviors of Remove.exe among the parameters listed in the table and those inserted randomly (not recognized).<br><br> 
+					
+					<a name="Wacom_Parameters"></a>
+					<table border="1" cellspacing="2" align="center">
+					
+						<th><b>Parameter</b></th><th><b>Description</b></th>
+						
+						<tr>
+							<td align="center"><i>/agree</i></td>
+							<td>Implicitly agrees to the license agreement window pop-up without showing it.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i><font color="green">/command commandName</font></i></td>
+							<td>Executes the commandName command.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/custom "fileName"</i></td>
+							<td>Copies C:\Program Files\Tablet\Wacom\32\CustomDefaults\fileName.xml to<br>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i><font color="green">/debug "C:\foo.txt"</font></i></td>
+							<td>Writes the logs generated during the execution of a command into C:\foo.txt file.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/d "C:\foo.txt"</i></td>
+							<td>Writes the logs generated during the execution of a command into C:\foo.txt file.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/from-ife</i></td>
+							<td>??? Can it be related to the graphics tablet Integrated Front End ???</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/hex "C:\...\foo.txt"</i></td>
+							<td>Converts C:\...\foo.txt to hexadecimal format and saves the converted file to C:\...\foo.txt.txt</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/ink</i></td>
+							<td>Request Ink installation.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/opt nowdc | nohelp | noinet | DebugDrv | DebugDll</i></td>
+							<td>Read <a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-driver" target="_blank" rel="noopener noreferrer">this</a> page for the description of the different options.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i><font color="green">/silent</font></i></td>
+							<td>Avoids the license agreement window (and any other windows) pop-up.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/s</i></td>
+							<td>Avoids the license agreement window (and any other windows) pop-up.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/uninstall</i></td>
+							<td>Uninstalls Wacom Driver.</td>
+						</tr>
+						
+						<tr>
+							<td align="center"><i>/u</i></td>
+							<td>Uninstalls Wacom Driver.</td>
+						</tr>
+					</table>
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<h3>
+					The parameters can be combined with each other and, generally (but not necessarily), are associated with a command.<br>I tried to play a bit with the parameters listed in the table to generate unexpected behavior in Remove.exe, and some of them were very interesting but, in this article, I just want to focus on the parameters highlighted in <font color="green">green</font> in the table above. 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par9"></a>
+				<h2>From /debug parameter to Arbitrary File Write \ Denial of Service</h2>
+				<h3>
+					First of all, I created the file C:\Windows\Temp\WacomInstallI.txt and wrote the following command in it: /debug "C:\foo.txt" /silent, then I triggered Remove.exe (through the command prompt) with the command "C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent<br>The result, as expected, was the creation of the C:\foo.txt file containing the logs of the operations performed by Remove.exe<br>But what operations did it perform? Let's look at <a href="wacom/foo.txt" target="_blank" rel="noopener noreferrer">foo.txt</a> file.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/foo.txt.PNG" alt="" title="foo.txt">
+		
+		<div>
+			<p>
+				<h3>
+					As you can see foo.txt has some difference from UpdateRF.log<br>Let's analyze the file in detail.
+					
+					<ol>
+						<li>The logs of the operations performed by Remove.exe are really written into foo.txt</li>
+						<li>The command we wrote into WacomInstallI.txt was received correctly as command line argument.</li>
+						<li>Other arguments are implicitly passed to Remove.exe, as shown in <a href="#Wacom_Tablet">this</a> image.<br>In short this means that the arguments that Remove.exe will actually receive are the following: <font color="green">/debug "C:\foo.txt" /silent</font> <font color="orange">/command UpdateRouterFilter /silent /agree</font></li> (where the green arguments are the arguments taken from WacomInstallI.txt and, the red ones, are implicitly passed to Remove.exe by Wacom_Tablet.exe).<br>The logs put in evidence an unexpected behavior because the implicit arguments are repeated twice and, for some reason, a chunk of the arguments read from WacomInstallI.txt (.t) precedes them. I suppose this problem may be related to the repetition of the /silent parameter or to the use of quotes; I haven't investigated further because, luckily for us, our command is successfully executed anyway &#128526;  
+						<li>Remove.exe reads the parameters\commands to execute from WacomInstallI.txt, as previously assumed.</li>
+						<li>Our parameters are being executed successfully!</li>
+						<li>/silent parameter is used to perform the operations without showing any window \ requiring any user interaction.</li>
+						<li>UpdateRouterFilter command is going to be executed (successfully).</li>
+						<li>All the operations have been performed successfully, so 0 is written into WacomInstallO.txt (in case of errors, 1 would have been written).</li>
+						<li>It's not possible to understand it from the logs but, at the end of all the operations, the WacomInstallI.txt file is deleted from the Windows Temp folder.</li>
+					</ol>
+					
+					In the example I created foo.txt on the C drive, which is a point where the regular user has write privileges but, repeating the same operation using the path "C:\Windows" or "C:\Windows\System32" (folders in which the regular user doesn't have write permission), foo.txt is created anyway.<br>This demonstrates, and can also be verified via Process Monitor, that Remove.exe executes the received arguments without impersonating the regular user, giving him an Arbitrary File Write primitive <u>with partial control over the content of the file written\overwritten</u> (because the only part of foo.txt that we can modify at will is the one indicated by rectangle 2, which is the one we write into WacomInstallI.txt).<br><br>But what if we used a path of an already existing file?<br>The file will be written in append mode! So, all the content shown in the image above would be added to the end of the file (I used the C:\Windows\<a href="wacom/win.ini" target="_blank" rel="noopener noreferrer">win.ini</a> file as proof of concepts). This clearly allows us to damage any executable (or other) file, causing <u>a possible Denial of Service</u> on any target program installed on the system (including the operating system itself (e.g. overwriting a system file necessary for the Windows startup)).
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/win.ini.PNG" alt="" title="win.ini overwritten">
+		
+		<div>
+			<p>
+				<a name="par10"></a>
+				<h2>Desperately looking for a way to Local Privilege Escalation &#128557;</h2>
+				<h3>
+					Unfortunately, now comes that very bad moment when you find yourself with an Arbitrary File Write primitive with partial control over the content of the file written\overwritten and you don't know how to use it to get a Local Privilege Escalation...<br>You have already found an Arbitrary File Write and a Denial of Service vulnerability that you could already publish, BUT you don't want to give up! And keep looking, to get something more! And maybe, in the meantime, some other bug hunter\researcher, who doesn't give a shit about doing better, is going publish what you have already found out but haven't disclosed yet &#129327;&#129327;<br><br>Anyhow I didn't give up and continued on my way, trying the following strategies that didn't get me anywhere but, with your help, they could be useful to me (and for some readers) in the future!
+					
+					<ul>
+						<li>
+							Overwrite a Windows .bat or .cmd file located by default in the Windows installation (I didn't want to rely on third party application batch\command files) which is executed from a certain process (suppose Trigger.exe) under the context of SYSTEM. At this point it would be enough to trigger Trigger.exe which, in turn, executes the overwritten .bat (or .cmd) file under the context of SYSTEM, to obtain a SYSTEM shell.<br>Simply by writing the following 4 lines inside <a href="wacom/WacomInstallI_0.txt" target="_blank" rel="noopener noreferrer">WacomInstallI.txt</a>, we're able to add the Remove.exe logs to target.bat content (just as seen for the win.ini example), with the certainty of having a row of the file containing the command start "C:\Windows\System32\cmd.exe"<br><br>
+						
+							<ol>
+								<li>/debug "C:\...\target.bat" /silent</li>
+								<li></li>
+								<li>start "C:\Windows\System32\cmd.exe"</li>
+								<li></li>
+							</ol>
+							
+							<br>If we run target.bat, we can see that a command prompt window appear. All other rows (previous and subsequent) read from the file will be considered as unrecognized commands and, therefore, will be ignored.<br>Unfortunately I found only a few .bat \ .cmd files in the Windows (and its subdirectories) folder and, all of them, can only be modified by <a href="https://www.makeuseof.com/tag/what-is-trustedinstaller-and-why-does-it-keep-me-from-renaming-files/" target="_blank" rel="noopener noreferrer">TrustedInstaller</a> (SYSTEM, in this particular case, sucks!), so Remove.exe can't overwrite them.
+						</li>
+						
+						<li>
+							Overwrite a Windows script (<u>of any type</u>) located by default in the Windows installation (I didn't want to rely on third party application batch\command files) which is executed from a certain process under the context of SYSTEM.<br>This is a more general case than the previous, which allowed me to find more types of scripts than before (eg .vbs .ps1 .js .bat and <a href="https://aerorock.co.nz/list-of-executable-file-extensions-windows/" target="_blank" rel="noopener noreferrer">more</a>...) but, each of these, can only be modified by TrustedInstaller (like before) or isn't triggered under the context of SYSTEM. <u>Furthermore</u>, unlike cmd.exe, which is the normal command interpreter for batch files, the interpreters of other types of script, not necessarily ignore the rows of the script not recognized as a command and continue the execution analyzing the next ones. In this case, the row containing the malicious command that open the command prompt window, will never be executed by the interpreter because the previous lines of the script that we have overwritten, will not be valid commands, and will stop the script execution.  
+						</li>
+						
+						<li>
+							Overwrite a .bat or .cmd file, located in the Wacom Driver installation directory, which is executed from a certain Wacom's process under the context of SYSTEM.<br>Unfortunately there are no .bat or .cmd scripts inside the Wacom Driver installation directory.
+						</li>
+						
+						<li>
+							Create a .bat or .cmd file located in the Windows <u>All Users</u> <a href="https://www.techopedia.com/definition/9537/startup-folder" target="_blank" rel="noopener noreferrer">StartUp folder</a> (C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp).<br>The idea is to wait for the administrator log in. Once logged in, our script is automatically executed and, once it reaches the malicious code line, it will assign administrator privileges to our user account.<br>To do this, we just have to replace the command <i>start "C:\Windows\System32\cmd.exe"</i> (written in the first point of this list) with the command <i>net localgroup administrators username /add</i> (where "username" is the name of our user account).<br>Unfortunately, by default, programs that run automatically in the Windows StartUp folder aren't executed with administrator privileges (so an agreement UAC window would appear to the admin). 
+						</li>
+						
+						<li>
+							The same strategy as the previous point but using the <a href="https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/group-policy-objects" target="_blank" rel="noopener noreferrer">Group Policy Management</a> to solve the problem of administrator privileges.<br>The Group Policy Object (GPO) can be configured to run a startup script with administrative privileges, so we can configure it to run our malicious script (described in the previous point) with administrator privileges (<a href="https://petri.com/run-startup-script-batch-file-with-administrative-privileges" target="_blank" rel="noopener noreferrer">here</a> you can see how to do it).<br>Unfortunately, creating our malicious .bat file in the C:\windows\system32\grouppolicy folder isn't enough to make it run; other configurations are required (take a look at the <a href="https://petri.com/run-startup-script-batch-file-with-administrative-privileges" target="_blank" rel="noopener noreferrer">linked article</a>), and I've not been able to reproduce them via batch commands.<br>Could <a href="https://atkdinosaurus.wordpress.com/2016/06/26/how-to-create-a-logon-script-for-a-user-on-a-non-domain-connected-windows-machine/" target="_blank" rel="noopener noreferrer">this</a> article help? I read it after taking other ways to get a LPE.
+						</li>
+						
+						<li>
+							Create (or overwrite) a malicious C:\Windows\System32\WindowsPowerShell\v1.0\<a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.2#the-profile-files" target="_blank" rel="noopener noreferrer">profile.ps1</a> script.<br>I found out this tricky technique by reading <a href="https://www.cloaked.pl/2021/04/cve-2021-26415/" target="_blank" rel="noopener noreferrer">this</a> interesting article.<br>The idea is to wait for the administrator log in and, once logged in, he has to run (<u>as administrator</u>), a <a href="https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/powershell" target="_blank" rel="noopener noreferrer">PowerShell</a> command line windows. If the C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1 file exists <u>and</u> the <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.2" target="_blank" rel="noopener noreferrer">PowerShell ExecutionPolicy</a> is set as "<a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.2#unrestricted" target="_blank" rel="noopener noreferrer">Unrestricted</a>", our malicious profile.ps1 will be executed with administrator privileges, and it will assign administrator privileges to our user account (using the <i>localgroup administrators username /add</i> command, as written in the fourth point of this list).<br>Unfortunately, even in this case, there are several problems that make this strategy impractical (in my particular case).<br>
+							
+							<ul>
+								<li>
+									PowerShell stops the script execution if it finds an unrecognized command and, as you saw from the previous images, before reading the instructions I can put in the log file, it will read the rows that don't contain valid PowerShell commands, so it would break. As it is written <a href="https://serverfault.com/questions/336121/how-to-ignore-an-error-in-powershell-and-let-it-continue" target="_blank" rel="noopener noreferrer">here</a>, it's possible to avoid the interruption of the execution by inserting <i>$ErrorActionPreference = 'SilentlyContinue'</i> at the start of profile.ps1 code but, in my particular case, it's not possible to control the text written in the first line of the debug file (profile.ps1 in this case).<br>
+								</li>
+								
+								<li>
+									We must wait for the administrator login (but this is not a problem if, sooner or later, the admin decides to log in).
+								</li>
+								
+								<li>
+									The admin must run (as administrator) a PowerShell command line windows (may be that, sooner or later, it does...).
+								</li>
+								
+								<li>
+									The PowerShell ExecutionPolicy must be set as "Unrestricted" and this could be a problem since it's set as "Restricted" by <a href="https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles?view=powershell-7.2#profiles-and-execution-policy" target="_blank" rel="noopener noreferrer">default</a>!<br>The following inexorable error will appear:<br><i>File C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1 cannot be loaded because its operation is blocked by software restriction policies. For more information, contact your system administrator.</i>
+								</li>
+							</ul>
+						
+							In the "Final touches" paragraph of the previously linked <a href="https://www.cloaked.pl/2021/04/cve-2021-26415/" target="_blank" rel="noopener noreferrer">article</a>, the author says: "<i>There are also other LPE locations where it will fit just fine, but thinking of other vectors is going to be your homework.</i>".<br>I haven't been a good student, and I was unable to carry out the homework &#128546; Did you find other LPE locations? Tell me via mail at <i>luca.barile.research@gmail.com</i> &#128231;
+						</li>
+						
+						<li>
+							Get an Arbitrary File Delete primitive from an Arbitrary File Write (<u>with partial control over the content of the file written\overwritten</u>) primitive.<br>The idea is to exploit our particular Arbitrary File Write primitive to get an Arbitrary File Delete primitive thanks to <a href="https://github.com/VikasVarshney/CVE-2020-0753-and-CVE-2020-0754#from-arbitrary-file-corruption-with-partial-control-to-privilege-escalation" target="_blank" rel="noopener noreferrer">this</a> very tricky technique!<br>The problem is that I can't inject a string recognized by Windows Defender as malicious, directly into the target file that I want to delete.<br>In my case, in fact, first I have to write the bad string in WacomInstallI.txt, then I've to trigger Remove.exe (through <i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</i> command), which will write this string in the target file.<br>Unfortunately, Windows Defender recognizes (and deletes) WacomInstallI.txt as malicious before Remove.exe can read it, causing this strategy to fail.<br>Finally, assuming that the strategy works, how can we get (<u>in general</u>) an LPE after deleting the target file, having only an Arbitrary File Write (<u>with partial control over the content of the file written\overwritten</u>) primitive available?  
+						</li>
+					</ul>
+					
+					Yes! If it had been an Arbitrary File Write primitive with full control over the content of the file written\overwritten, it would have been much easier... It would have been enough to follow one of <a href="https://github.com/sailay1996/awesome_windows_logical_bugs/blob/master/FileWrite2system.txt" target="_blank" rel="noopener noreferrer">these</a> techniques (<a href="http://www.hexacorn.com/blog/2016/11/08/beyond-good-ol-run-key-part-50/" target="_blank" rel="noopener noreferrer">ualapi.dll</a> is one of my favorite Windows 10 phantom dll).<br><br>
+					
+					Please, if you know how to solve one (or more) of the problems listed above or, more generally, if you know some techniques to get a Local Privilege Escalation starting from an Arbitrary File Write primitive with partial control over the content of the file written\overwritten without using third-party applications, send me a message at <i>luca.barile.research@gmail.com</i>. I'll publish the technique directly in this paragraph; it could help other researchers\readers. 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par11"></a>
+				<h2>Analyzing /command parameter &#128269;</h2>
+				<h3>
+					After the previous numerous, very time consuming and unfortunately unsuccessful attempts to exploit the /debug parameter to get a LPE, I decided to go back and analyze the other parameters discovered (previously listed <a href="#Wacom_Parameters">here</a>).<br>The reason is quite simple: if the /debug parameter led me to an Arbitrary File Write (with partial control over the content of the file written\overwritten), may be that the other parameters may also lead to some other equally interesting result.<br>As you were probably already guessing before reading this paragraph (since I've already highlighted it in green in the table (spoiler &#128530;)), I decided to analyze the <i>/command</i> parameter.<br><i>/command commandName</i> executes the <i>commandName</i> command and, so far, the only command we could find is <i>UpdateRouterFilter</i>.<br>Is this the only command available? Probably not because, if it were, what kind of value would the <i>/command commandName</i> have? It would be useless since we could only execute one command; it would make more sense to introduce an <i>/UpdateRouterFilter</i> parameter and nothing else.<br>For this reason I assumed that others must also exist, but which are they? How many? What are they for? And, more importantly, is there one that can be useful for our purposes?
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par12"></a>
+				<h2>Hunting for commands &#128299;</h2>
+				<h3>
+					Similarly to what I did to search for all the possible parameters accepted by Remove.exe, I searched, in all the strings references of all the Remove.exe modules (look at <a href="#par8">this</a> previous paragraph), the presence of some new command but, unexpectedly, not even the only command found so far (UpdateRouterFilter), was present! Where're the commands?! &#128562;<br>I Assumed, erroneously, that since it's Wacom_Tablet.exe that creates the Remove.exe process and calls it by passing some arguments, including the UpdateRouterFilter command (look at <a href="#par4">this</a> previous paragraph (image 3)), I could also find other commands by searching in all the strings references of all the Wacom_Tablet.exe modules, but I could not find anything.<br>Since I was in reversing\debugging mode, I continued to analyze with x32dbg\x64dbg other applications (located in the Wacom Driver installation folder) that seemed potentially interesting to me (such as PrefUtil.exe, WacomDesktopCenter.exe, Wacom_CVCBridge.exe, and so on...), but the final result was just a big waste of time!! &#127881;<br>
+					Since we are sure that Remove.exe, when triggered, executes the <i>UpdateRouterFilter</i> command that it receives as parameter (and we can confirm this fact from the logs (look at <a href="#par5">this</a> previous paragraph (image 2, line 31)), it means that, somehow, it must verify that the given command exists among a list of possible commands, before executing it.<br>Since I've found that this list doesn't exist among all the strings references of all its modules, I concluded that it must read this list of commands somewhere else.<br>
+					To confirm my theory I came back to dynamic analysis. I analyzed through Process Monitor the activities performed by Remove.exe from the moment it is executed to the moment it creates UpdateRF.log, and I discovered that, among the various activities performed between these two events, it reads many times something from Installer.dat (1) and Common.dat (2) files, as you can see in the following image &#129300;
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/InstallerAndCommon.dat.PNG" alt="" title="Remove.exe reads something from Installer.dat and Common.dat">
+		
+		<div>
+			<p>
+				<a name="par13"></a>
+				<h2>Installer.dat and Common.dat: two files full of commands &#128451;&#65039;</h2>
+				<h3>
+					Reading the contents of the <a href="wacom/Installer.dat" target="_blank" rel="noopener noreferrer">Installer.dat</a> and <a href="wacom/Common.dat" target="_blank" rel="noopener noreferrer">Common.dat</a> files, I found the list(s) of possible commands that Remove.exe can execute, confirming my previously theory.<br>Installer.dat contains 76 possible commands, while Common.dat contains 49; the complete commands list is illustrated in the image below.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/AllCommandsList.PNG" alt="" title="List of all commands recognized by Remove.exe">
+		
+		<div>
+			<p>
+				<h3>
+					Analyzing the command structure, it's easy to understand that <font color="red">the name of each command</font> is contained between two square brackets (eg [commandName]), the following lines contain <font color="lime">the instructions of the command itself</font> (which Remove.exe must execute (those starting with # are comments)) and the line containing the word "DONE" only, represents <font color="orange">the end of the command</font>.<br>Some examples are shown in the following image.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/CommandsStructure.PNG" alt="" title="Remove.exe commands structure">
+		
+		<div>
+			<p>
+				<h3>
+					The instructions of the various commands are quite easy to understand and self-explanatory in many cases. Let's analyze, for example, the command contained in the blue box.<br><u>Execute</u> means that a program must be executed.<br><u>;</u> is the character used to separate the various parameters.<br><u>100</u> is the time (in milliseconds) that must elapse before executing the program.<br><u>!PROGFILES!\\Tablet\\DevInst.exe</u> is the path of the program to execute (!PROGFILES! is the analogue of the <a href="https://docs.microsoft.com/it-it/dotnet/api/microsoft.visualbasic.fileio.specialdirectories.programfiles?view=net-6.0" target="_blank" rel="noopener noreferrer">%ProgramFiles%</a> special directory and if, as usually happens, Windows is installed in the C drive, it's equals to C:\Program Files), in my case: C:\Program Files\Tablet\DevInst.exe<br><u>CopyOEMInf wachidrouter_pro.inf</u> is what will be written to the log file (line 187, for example, is written in image 2 (line 33) of <a href="#par5">this</a> previous paragraph).<br>It's not a coincidence that, in the example, I took into consideration the "Execute" command, that allows to execute a program...<br>(From now on, for convenience, I'll write Arbitrary File Write* to indicate our particular situation, in which we have an Arbitrary File Write primitive with <u>partial</u> control over the content of the file written\overwritten).
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par14"></a>
+				<h2>Arbitrary File Write* + Installer.dat = Arbitrary Commands Injection &#128161;</h2>
+				<h3>
+					The discovery of the two .dat files was the piece we needed to complete the puzzle.<br>Now we can finally weaponize our Arbitrary File Write* to get the coveted Local Privilege Escalation, following a different strategy from those indicated in <a href="#par10">this</a> previous paragraph, which this time will not be a failure, but a winning strategy!! &#128526;<br>
+					So... What's the idea?<br>Now we can use our Arbitrary File Write* primitive to append a command (for example <i>PrivilegeEscalation</i>) at the end of Installer.dat (we could also use Common.dat) and then invoke that command using the <i>/command PrivilegeEscalation</i> parameter (instead of the well-known <i>UpdateRouterFilter</i>). We can associate a single instruction to the command which, similarly to the one described in the previous paragraph (<i>Execute;1000;!PROGFILES!\\Tablet\\DevInst.exe;</i>), executes a program but, in our case, we can decide to run cmd.exe<br>Since Remove.exe executes commands under the context of SYSTEM, the programs it will run will become, in turn,  processes running under the context of SYSTEM and, in our case, we'll get a Command Prompt window running as NT AUTHORITY\SYSTEM.<br>To do what has been said we just have to create C:\Windows\Temp\WacomInstallI.txt with the following content.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/MaliciousWacomInstallI.txt.PNG" alt="" title="WacomInstallI.txt used to inject malicious command into Installer.dat">
+		
+		<div>
+			<p>
+				<h3>
+					<i>/debug "C:\Program Files\Tablet\Wacom\32\Installer.dat"</i> will force Remove.exe to append the logs of the activities it's performing at the end of C:\Program Files\Tablet\Wacom\32\Installer.dat file, while /silent avoids the license agreement window (and any other windows) pop-up (as previously explained).<br>The remaining three rows represent the command in its 3 components (name, instructions, end), as explained in the example of the previous paragraph.<br>Since Remove.exe considers all the four lines as arguments, they will be copied into Installer.dat even if, practically, only the first line contains the only parameter (/debug) accepted and executed.<br>The final result, obtained after triggering Remove.exe with the usual command line (<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</i>), is the <a href="wacom/Installer_modified.dat" target="_blank" rel="noopener noreferrer">Installer.dat</a> file modified as follows.
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/ModifiedInstaller.dat.PNG" alt="" title="PrivilegeEscalation injected into Installer.dat">
+		
+		<div>
+			<p>
+				<h3>
+					The most important thing we can observe is the light blue rectangle. It shows us that our malicious command (PrivilegeEscalation), was successfully injected into Installer.dat as an argument read by Remove.exe from our malicious <a href="wacom/WacomInstallI_1.txt" target="_blank" rel="noopener noreferrer">WacomInstallI.txt</a><br>We can observe the following things
+					
+					
+					<ul>
+						<li>
+							A new line character is automatically inserted between one line and the other, but this is not a problem because it doesn't affect the correct execution of the command.
+						</li>
+						
+						<li>
+							<i>!SYSTEM!</i> represents a <a href="https://docs.microsoft.com/en-us/dotnet/api/system.environment.specialfolder?view=net-6.0#examples" target="_blank" rel="noopener noreferrer">special folder</a> and if, as usually happens, Windows is installed in the C drive, it's equals to C:\Windows\System32 so, the full path is C:\Windows\System32\cmd.exe. This way of proceeding allows us to make the exploit work even if the operating system is installed in a partition that is not C.
+						</li>
+						
+						<li>
+							<i>md.exe</i> can be explained by the same behavior seen in point 3 of the list written in <a href="#par9">this</a> previous paragraph. This is not a problem because it's located after the word DONE, so it doesn't affect the normal execution of the injected command.
+						</li>
+						
+						<li>
+							Our injected command is in the middle of the logs written by Remove.exe (which we can see as "junk text"), but this is not a problem because, when Remove.exe looks for a command to execute, it analyzes all the strings contained between all the square brackets present in Installer.dat, and if it doesn't find the specified command, it ignores everything else. If the command is recognized, Remove.exe executes all the instructions written between the row containing the command name and the row containing the string "DONE".<br>This way of proceeding avoids possible Remove.exe crashes, because the situation in which the junk text is executed will never occur. 
+						</li>
+						
+						<li>
+							The <i>/silent</i> parameter associated with the <i>/debug</i> parameter, as mentioned previously, allows Remove.exe to inject our malicious command into Installer.dat silently, without popping up any window.
+						</li>
+						
+						<li>
+							Due to the logic with which the logs are written, the parameters read from WacomInstallI.txt, and therefore also the malicious command we want to inject, are written twice into Installer.dat<br>This is not a problem because Remove.exe executes only the first found occurrence of the malicious command, and once executed, it doesn't evaluate the presence of any other occurrences (if it also executed the second, it wouldn't be a problem anyway... We would have two SYSTEM command prompts instead of one &#128527;). 
+						</li>
+						
+					</ul>
+					
+					Perfect! Now we must run the command just injected into Installer.dat (PrivilegeEscalation)... How can we do it?<br>To inject the malicious command we created (and wrote into) C:\Windows\Temp\WacomInstallI.txt but, as indicated in the list (point 9) written in <a href="#par9">this</a> previous paragraph, at the end of the operations Remove.exe deletes this file.<br>All we have to do is recreate it, write the <i>/command PrivilegeEscalation /silent</i> command into <a href="wacom/WacomInstallI_2.txt" target="_blank" rel="noopener noreferrer">it</a>, and trigger Remove.exe again, using the usual <i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent</i> command line.<br>If all goes well, the coveted Command Prompt window running as NT AUTHORITY\SYSTEM should appear &#129310;
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par15"></a>
+				<h2>Let's recap what we have just said</h2>
+				<h3>
+					Summarizing what has been said so far, to pop up the Command Prompt window, we should perform the following steps.
+					
+					<ol>
+						<li>Create C:\Windows\Temp\WacomInstallI.txt and write the following four rows in it:<br>
+							<i>/debug "C:\Program Files\Tablet\Wacom\32\Installer.dat" /silent</i><br>
+							<i>[PrivilegeEscalation]</i><br>
+							<i>Execute;1000;!SYSTEM!\\cmd.exe</i><br>
+							<i>DONE</i>
+						</li>
+						
+						<li>
+							Trigger Remove.exe through PrefUtil.exe using the following command:<br>
+							<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent</i><br>
+						</li>
+						
+						<li>
+							Wait for Remove.exe to finish.<br>
+							At the end of its execution the <i>PrivilegeEscalation</i> command should have been injected into Installer.dat silently and WacomInstallI.txt should have been deleted.
+						</li>
+						
+						<li>Create C:\Windows\Temp\WacomInstallI.txt again and write the following row in it:<br>
+							<i>/command PrivilegeEscalation /silent</i>
+						</li>
+						
+						<li>
+							Trigger Remove.exe through PrefUtil.exe using the following command:<br>
+							<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent</i><br>
+						</li>
+						
+						<li>
+							Wait for Remove.exe to finish.<br>
+							At the end of its execution the <i>PrivilegeEscalation</i> command should have been executed silently and WacomInstallI.txt should have been deleted.<br>
+							The execution of <i>PrivilegeEscalation</i> command should have been popped out the coveted Command Prompt window, running as NT AUTHORITY\SYSTEM.
+						</li>
+					</ol>
+					
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par16"></a>
+				<h2>Close, but no cigar &#128685;&#128557;</h2>
+				<h3>
+					I was ready to celebrate but... WTF?! The exploit I wrote following the previous steps didn't work!<br>
+					How the hell is that possible? &#128562;<br>
+					After racking my brain for hours I found out it's all the fault of those damned arguments implicitly passed to Remove.exe (of which I have spoken in <a href="#par9">this</a> previous paragraph (point 3 of the list)) &#128545;<br>
+					If you remember, the following arguments were implicitly passed to Remove.exe<br>
+					<font color="red">/command UpdateRouterFilter /silent /agree</font><br>
+					therefore, when we execute the step 5 of the previous list, Remove.exe concatenates the arguments we wrote in WacomInstallI.txt (step 4 of the previous list) with the implicit ones, producing the following final string<br>
+					<font color="green">/command PrivilegeEscalation /silent</font> <font color="red">/command UpdateRouterFilter /silent /agree</font><br>
+					Since the /command and /silent parameters are repeated twice, Remove.exe considers only the last occurrences. The /silent parameter doesn't change, so it's not a problem, but the second /command parameter executes the UpdateRouterFilter command instead of our malicious PrivilegeEscalation, fucking up all our plans!
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par17"></a>
+				<h2>The solution to the last problem &#10004;&#65039;&#129395;</h2>
+				<h3>
+					To solve this problem I used the /debug parameter in a particular way, adding it to the parameters written into <a href="wacom/WacomInstallI_3.txt" target="_blank" rel="noopener noreferrer">WacomInstallI.txt</a> in the following way<br>
+					<font color="green">/command PrivilegeEscalation /silent /debug "</font><br>
+					as a consequence, after the concatenation performed by Remove.exe, the final string produced is the following<br>
+					<font color="green">/command PrivilegeEscalation /silent /debug " /command UpdateRouterFilter /silent /agree</font><br>
+					The idea is to use the /debug parameter to force Remove.exe to consider the arguments it implicitly receives as the path of the file to write the logs in, even if it isn't possible to write the closing quotes of the path at the end of the implicit parameters.<br>Fortunately, the idea works even without the closing quotes! No log file is created (obviously because its path is malformed) and our malicious command is executed successfully, allowing us to get the Command Prompt window running as NT AUTHORITY\SYSTEM.<br>
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par18"></a>
+				<h2>The Exploit &#9760;&#65039;</h2>
+				<h3>
+					The steps we need to perform to pop out a Command Prompt window running as NT AUTHORITY\SYSTEM are almost the same as those previously indicated; we just need to add the /debug parameter appropriately.
+					
+					<ol>
+						<li>Create C:\Windows\Temp\WacomInstallI.txt and write the following four rows in it:<br>
+							<i>/debug "C:\Program Files\Tablet\Wacom\32\Installer.dat" /silent</i><br>
+							<i>[PrivilegeEscalation]</i><br>
+							<i>Execute;1000;!SYSTEM!\\cmd.exe</i><br>
+							<i>DONE</i>
+						</li>
+						
+						<li>
+							Trigger Remove.exe through PrefUtil.exe using the following command:<br>
+							<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent</i><br>
+						</li>
+						
+						<li>
+							Wait for Remove.exe to finish.<br>
+							At the end of its execution the <i>PrivilegeEscalation</i> command should have been injected into Installer.dat silently and WacomInstallI.txt should have been deleted.
+						</li>
+						
+						<li>Create C:\Windows\Temp\WacomInstallI.txt again and write the following row in it:<br>
+							<font color="green"><i>/command PrivilegeEscalation /silent /debug "</i></font><br>
+						</li>
+						
+						<li>
+							Trigger Remove.exe through PrefUtil.exe using the following command:<br>
+							<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore" "C:\...\Backup.wacomprefs" /silent</i><br>
+						</li>
+						
+						<li>
+							Wait for Remove.exe to finish.<br>
+							At the end of its execution the <i>PrivilegeEscalation</i> command should have been executed silently and WacomInstallI.txt should have been deleted.<br>
+							The execution of <i>PrivilegeEscalation</i> command should have been popped out the coveted Command Prompt window, running as NT AUTHORITY\SYSTEM.
+						</li>
+					</ol>
+					
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/LPE" target="_blank" rel="noopener noreferrer">Here</a> you can find the C# source code of my exploit (Visual Studio Project.zip).<br>
+					<a href="media/ExploitCode.png" target="_blank" rel="noopener noreferrer">Here</a> you can find the source code picture.<br>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/LPE" target="_blank" rel="noopener noreferrer">Here</a> you can find the executable file (Exploit.exe). 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par19"></a>
+				<h2>POC &#127910;</h2>
+				<h3>
+					I have tested the exploit only for Wacom Driver 6.3.45-1 but, most likely, it also works for the previous versions (and I hope not on the future ones &#128580;). 
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/POC.gif" alt="" title="Exploitation Proof Of Concept">
+		
+		<div>
+			<p>
+				<a name="par20"></a>
+				<h2>How to fix the vulnerability &#128657;</h2>
+				<h3>
+					The root cause from which everything begins is C:\Windows\Temp\WacomInstallI.txt<br>There may be several ways to solve the problem but, in my opinion, one of the best is to move WacomInstallI.txt to a folder where the regular user can't write to (e.g. C:\Program Files\Tablet\Wacom).<br>Without the possibility to write in that file, it isn't possible to send parameters and commands of our choice to Remove.exe and, consequently, we can't perform the previously described attack.<br>Another idea is to force Remove.exe to <a href="https://docs.microsoft.com/en-us/windows/win32/com/impersonation" target="_blank" rel="noopener noreferrer">impersonate</a> the user while executing commands read from WacomInstallI.txt<br>However I don't think this is a viable solution because, as you can see from the Installer.dat file, most of the commands require elevated privileges to be executed correctly and so I think that the solution proposed before remains the best.<br>I haven't checked under what circumstances WacomInstallI.txt is created by some Wacom's process. Is it actually created by some process? Is it actually used by Wacom Driver 6.3.45-1 or was it only used in some previous version?<br>I don't know and haven't tried to answer these questions, however I know that if it's actually used, it's definitely a good idea to move it out from the Windows Temp folder.
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par21"></a>
+				<h2>Th-th-th that's all folks! &#128282;</h2>
+				<h3>
+					I want to conclude <u>the technical part</u> of this (short &#128529;) write-up in the same way the Wacom developers have written the last command into Installer.dat<br>Taking a look at the bottom of that file, we can notice that the last entered command is a test command, aimed at testing the correct reading, interpretation and execution of the commands. 
+				</h3>
+			</p>
+		</div>
+		
+		<img src="media/ThatsAllFolks.png" alt="" title="Th-th-th that's all folks!">
+		
+		<br>
+		
+		<video controls>
+			<source src="media/ThatsAllFolks.mp4" type="video/mp4">
+		</video>
+		
+		<div>
+			<p>
+				<a name="par22"></a>
+				<h2>Vulnerability disclosure timeline &#128197;</h2>
+				<h3>
+					First of all, I checked if the vendor has launched a bug bounty program but, unfortunately, Wacom Technology Corporation has none and the only page where you can report something (<a href="https://support.wacom.com/hc/en-us/requests/new" target="_blank" rel="noopener noreferrer">this</a>), doesn't speak explicitly of any acknowledgement (neither meritocratically nor economically).<br>At this point I followed the MITRE <a href="https://cve.mitre.org/cve/researcher_reservation_guidelines" target="_blank" rel="noopener noreferrer">researcher reservation guidelines</a> and, since Wacom Technology Corporation isn't on the <a href="https://www.cve.org/PartnerInformation/ListofPartners" target="_blank" rel="noopener noreferrer">CNAs partner list</a>, the only two remaining possibilities were to contact the CNA of Last Resort (<a href="https://cve.mitre.org/about/terminology.html#cna-lr" target="_blank" rel="noopener noreferrer">CNA-LR</a>) through the <a href="https://cveform.mitre.org/" target="_blank" rel="noopener noreferrer">CVE Request web form</a> or a <a href="https://cve.mitre.org/cve/researcher_reservation_guidelines#process#4" target="_blank" rel="noopener noreferrer">third-party coordinator CNAs</a>.<br>Since the CNA of Last Resort, as the word itself says, is <u>the last resort</u> (&#127965;&#65039;), I looked for a third-party CNA in the CNAs list and decided to contact the <a href="https://www.zerodayinitiative.com/" target="_blank" rel="noopener noreferrer">Zero Day Initiative</a> CNA.<br>ZDI relieves you from the burden of tracking the bug with the vendor, <u>could</u> make a monetary offer to the researcher (CNA of Last Resort doesn't), follows a <a href="https://www.bugcrowd.com/resource/what-is-responsible-disclosure/" target="_blank" rel="noopener noreferrer">responsible vulnerability disclosure</a> policy and has a <a href="https://www.zerodayinitiative.com/about/benefits/" target="_blank" rel="noopener noreferrer">loyalty program</a> (CNA of Last Resort doesn't). You can learn more about their disclosure policy <a href="https://www.zerodayinitiative.com/advisories/disclosure_policy/" target="_blank" rel="noopener noreferrer">here</a>.
+					
+					<ul>
+						<!-- Italy (Milano) GMT+1 | ZDI (??) GMT-6 | Milano is 7h ahead of ZDI-->
+						<li>2021-12-21 - I decided to hunt for some vulnerabilities in Wacom Driver 6.3.45-1 during my spare time.</li>
+						<li>2022-01-11 - I found the last piece of the puzzle to get a LPE.</li>
+						<li>2022-01-12 - I reported the vulnerability to Zero Day Initiative (2022-01-11 | 17:03 | GMT-6 | Case opened).</li>
+						<li>2022-01-19 - Zero Day Initiative assigned the case (2022-01-18 | 18:23 | GMT-6 | Case assigned).</li>
+						<li>2022-01-03 - Zero Day Initiative investigated the case (2022-02-02 | 23:02 | GMT-6 | Case investigated).</li>
+						<li>2022-01-04 - Zero Day Initiative extended an offer for the rights to my vulnerability.</li>
+						<li>2022-01-04 - I accepted the offer and sent them the requested data.</li>
+						<li>2022-02-08 - The case has been officially contracted to the ZDI (2022-02-08 | 15:27 | GMT-6 | Case contracted).</li>
+						<li>2022-02-16 - I received the payment issued by ZDI.</li>
+						<li>2022-03-29 - Zero Day Initiative reviewed the case (2022-03-29 | 16:03 | GMT-6 | Case reviewed).</li>
+						<li>2022-03-30 - I asked ZDI for an update.</li>
+						<li>2022-03-31 - ZDI replied that a report has been written and the case is ready to be submitted to the vendor.</li>
+						<li>2022-05-09 - I asked ZDI for an update.</li>
+						<li>2022-05-17 - ZDI replied that the vulnerability hasn't been notified to the vendor yet.</li>
+						<li>2022-06-27 - I asked ZDI for an update.</li>
+						<li>2022-06-27 - ZDI replied that they've had a hard time disclosing this case to the vendor, but they're going to send them one more message informing them that they intend to 0-day the case if they don't receive a legitimate reply.</li>
+						<li>2022-07-08 - ZDI assigned the id ZDI-CAN-16318 to the vulnerability and submitted the details of this case to the vendor, giving it the deadline of 2022-11-05 for the fix (2022-07-08 | 20:00 | GMT-6 | Vendor disclosure).</li>
+						<li>2022-07-19 - I asked ZDI why the deadline is in November if the vendor has already been notified of the vulnerability several months ago (no answer).</li>
+						<li>2022-11-17 - I asked ZDI for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
+						<li>2023-01-22 - I asked ZDI again for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
+						<li>2023-02-22 - I asked ZDI again for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
+						<li>2023-03-23 - I informed ZDI that I decided to publish the exploit for the vulnerability by the end of April because of their delays (after more than a year since the vulnerability was reported, it still only appear on their &quot;<a href="https://www.zerodayinitiative.com/advisories/upcoming/" target="_blank" rel="noopener noreferrer">Upcoming</a>&quot; page and no CVE ID has been assigned) and lack of answers. In addition, I pointed out the fact that their behavior is not in accordance with their <a href="https://www.zerodayinitiative.com/blog/2022/8/11/new-disclosure-timelines-for-bugs-from-faulty-patches" target="_blank" rel="noopener noreferrer">disclosure timelines</a> (again, no answare...).</li>
+						<li>2023-04-02 - I decided to make the exploits for this vulnerability (and related reports) public on <a href="https://github.com/LucaBarile/ZDI-CAN-16318" target="_blank" rel="noopener noreferrer">my GitHub page</a> and informed MITRE through CNA-LR.</li>
+					</ul>
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par23"></a>
+				<h2>Conclusion</h2>
+				<h3>
+					I really enjoyed hunting for logical vulnerabilities; it was the first time I tried to hunt for this type of vulnerability.<br>Instead of focusing on the classic and well-known <a href="https://thinkst.com/resources/papers/BlackHat-USA-2010-Meer-History-of-Memory-Corruption-Attacks-wp.pdf" target="_blank" rel="noopener noreferrer">memory corruption bugs</a>, whose exploitation is becoming more and more difficult due to increasingly advanced <a href="https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/windows-10-memory-protection-features/ba-p/259046" target="_blank" rel="noopener noreferrer">memory protection features</a> (such as ASLR, KASLR, DEP, SEHOP, ...), the logical vulnerabilities follow another attack perspective, based on the logic with which the developer(s) determine what the program should do and how.<br>Dynamic analysis contributes a lot to understand the processing flow of an application and could save us, in part or entirely, from the much more time consuming static analysis.<br>Analyzing the behavior of the different processes and their interactions, we can understand the logic according to which they operate and, starting from this, we can try to understand if (and how) it's possible to manipulate the normal processes execution flow, to generate unexpected behaviors that allow us to reach our goals (e.g. Local Privilege Escalation, Remote Code Execution, Denial Of Service, Arbitrary File Read, ...).<br>In my particular case, in order to generate unexpected behaviors, I took advantage of reading from a file in which the user shouldn't have been able to write, but there are many other ways and techniques to achieve this goal (eg <a href="https://lucabarile.github.io/Blog/dll_hijacking_and_proxying/index.html" target="_blank" rel="noopener noreferrer">dll attacks</a> (replacement, hijacking, proxying, <a href="https://book.hacktricks.xyz/windows/windows-local-privilege-escalation/dll-hijacking#types" target="_blank" rel="noopener noreferrer">...</a>), <a href="https://lucabarile.github.io/Blog/toctou/index.html" target="_blank" rel="noopener noreferrer">race condition</a>, <a href="https://lucabarile.github.io/Blog/toctou/index.html" target="_blank" rel="noopener noreferrer">junctions</a>, symbolic links, <a href="https://lucabarile.github.io/Blog/toctou/index.html" target="_blank" rel="noopener noreferrer">opportunistic locks</a>, <a href="https://posts.specterops.io/avira-optimizer-local-privilege-escalation-af109b7df5b1" target="_blank" rel="noopener noreferrer">named pipe impersonation</a>, ...), some of which still to be discovered! <br>One of the most stimulating moments comes when, through one or more techniques, you're able to achieve partial goals (e.g. Arbitrary File Read\Write) and you need to understand how (and if) it's possible to chain them to achieve the final goal (e.g. LPE); this is the moment in which we have to be creative and avoid overheating of our brain &#129327;<br>The last, but not least, hallmark of logical vulnerabilities I want to mention lies in the ease with which they can be exploited, and in the 'quality' of the exploits that can be developed for them. In fact, it's not always possible to develop a "reliable" exploits for a memory corruption vulnerability (read <a href="https://googleprojectzero.blogspot.com/2015/06/what-is-good-memory-corruption.html" target="_blank" rel="noopener noreferrer">this</a> article for more information), also due to the high level of dependence they have with the <a href="https://books.google.it/books?id=G6Zeh_XSOqUC&pg=PA27&lpg=PA27&dq=%22Since+the+stack+plays+a+critical+role%22&source=bl&ots=0A5XWOwamI&sig=ACfU3U2nImVAe0PJ8zUbVskRZ08wx_H22Q&hl=it&sa=X&ved=2ahUKEwjPj4zWz9r1AhWnQ_EDHYURB64Q6AF6BAgCEAM#v=onepage&q=%22Since%20the%20stack%20plays%20a%20critical%20role%22&f=false" target="_blank" rel="noopener noreferrer">architecture</a> and the <a href="https://security.stackexchange.com/questions/56825/are-exploits-platform-dependent" target="_blank" rel="noopener noreferrer">PC platform</a> for which they were designed. This level of dependency is not usually present in logical vulnerability exploits because they aren't based on the architecture of the system, but on the logic of the processes and on the alteration of their execution flow.<br>Finally I want to point out that avoiding this type of software vulnerability is not easy at all. An idea could be to limit as much as possible, especially from the processes running under the context of SYSTEM, the interactions with files and folders on which the regular user can write to. However, this limitation isn't always easy to maintain, impersonation is often overlooked and preventing attacks based on multiple 'inaccuracies' chaining is very difficult.<br>So? What are you waiting for? Find and exploit your logical vulnerability and share your knowledge on your blog &#128579;<br><br>PS<br>As many of you have already noticed, I wrote this article going into detail and specifying concepts that are probably well known for people who have been dealing with these topics for a while but, for the people who are approaching them now, they may be less obvious.<br>When I began to study and deepen these topics, I had some difficulties to understand the more technical parts of various write-ups, and I tried to gather here and there on the net the missing knowledge, to fully understand what the author was explaining.<br>I hope this article can be easily understood and used as a link, to better understand any other write-up (related to logical vulnerabilities) written in a more concise way. 
+				</h3>
+			</p>
+		</div>
+		
+		<div>
+			<p>
+				<a name="par24"></a>
+				<h2>Useful readings and references &#128279;</h2>
+				<h3>
+					I've already included all the useful references for the drafting of this article and deepening of some concepts, in the form of links, in the various paragraphs that you have read.<br><br>As for the readings, in my opinion, the usual texts that are often recommended to those who are approaching the exploits development topic <u>can</u> be useful (eg <a href="https://www.amazon.com/Hacking-The-Art-Exploitation-Edition/dp/1593271441" target="_blank" rel="noopener noreferrer">Hacking - The art of exploitation</a>, <a href="https://www.amazon.com/Writing-Security-Tools-Exploits-Foster/dp/1597499978" target="_blank" rel="noopener noreferrer">Writing Security tools and Exploits</a>, <a href="http://www.pentest.guru/index.php/2016/01/28/best-books-tutorials-and-courses-to-learn-about-exploit-development/" target="_blank" rel="noopener noreferrer">...</a>) <u>BUT</u>, my advice is to focus <u>also</u> on the researchers' write-ups (in particular the most recent ones, representing the current state of the art), and on a specific type of vulnerability that you have decided to investigate (eg logical vulnerabilities, <a href="https://encyclopedia.kaspersky.com/glossary/use-after-free/" target="_blank" rel="noopener noreferrer">UAF</a>, ...).<br>The usual texts are undoubtedly useful readings but sometimes they might be too general (they don't focus (or only partially) on the topics of your interest), not updated (they make assumptions and use techniques that are no longer applicable to modern operating systems), too little practical (rich in theoretical concepts but poor in practical examples applicable to current operating systems) and reductive towards new protection systems (they apply exploiting techniques assuming an ideal situation, in which one or more of the protections implemented in the nowadays operating systems, are absent or disabled).<br><br>For these reasons I prefer to suggest readings based on the write-ups of various researchers, regarding the logical vulnerabilities.<br><u>The first</u> link refers to a collection of write-ups, slides, in-depth analysis and readings about logical vulnerabilities (kindly collected by <a href="https://github.com/sailay1996" target="_blank" rel="noopener noreferrer">sailay1996</a>), <u>the subsequent ones</u> refer to other write-ups not present in that list, and <u>the last four</u> refer to constantly updated databases through which you can stay up to date on the new discovered vulnerabilities.
+					
+					<ul>
+						<li>
+							The sailay1996 <a href="https://github.com/sailay1996/awesome_windows_logical_bugs/blob/master/learning_note_bookmarks.txt" target="_blank" rel="noopener noreferrer">Collection</a>
+						</li>
+						
+						<li>
+							Darren Mar-Elia <a href="https://sdmsoftware.com/security-related/understanding-group-policy-privilege-escalation-in-cve-2020-1317/" target="_blank" rel="noopener noreferrer">CVE-2020-1317</a>
+						</li>
+						
+						<li>
+							Victor Mata <a href="https://www.accenture.com/us-en/blogs/cyber-defense/discovering-exploiting-shutting-down-dangerous-windows-print-spooler-vulnerability" target="_blank" rel="noopener noreferrer">CVE-2020-1030</a>
+						</li>
+						
+						<li>
+							Eran Shimony <a href="https://www.cyberark.com/resources/threat-research-blog/lazy-privilege-escalation-abusing-dell-s-dup-framework-cve-2019-3726" target="_blank" rel="noopener noreferrer">CVE-2019-3726</a> | <a href="https://www.cyberark.com/resources/threat-research-blog/anti-virus-vulnerabilities-who-s-guarding-the-watch-tower" target="_blank" rel="noopener noreferrer">Antivirus CVEs</a>
+						</li>
+						
+						<li>
+							The Nomi Sec <a href="https://github.com/nomi-sec/PoC-in-GitHub" target="_blank" rel="noopener noreferrer">PoC in GitHub</a>
+						</li>
+						
+						<li>
+							CVEBASE (<a href="https://www.cvebase.com/cve" target="_blank" rel="noopener noreferrer">CVE</a> | <a href="https://www.cvebase.com/poc" target="_blank" rel="noopener noreferrer">POC</a> | <a href="https://github.com/cvebase" target="_blank" rel="noopener noreferrer">GitHub</a>)
+						</li>
+
+						<li>
+							The National Vulnerability Database <a href="https://nvd.nist.gov/vuln/search/results?form_type=Basic&results_type=overview&search_type=last3months&isCpeNameSearch=false" target="_blank" rel="noopener noreferrer">CVE list</a>
+						</li>
+						
+						<li>
+							Microsoft Security Response Center <a href="https://msrc.microsoft.com/update-guide/acknowledgement/cve" target="_blank" rel="noopener noreferrer">CVE Acknowledgements</a>
+						</li>
+					</ul>
+					
+					And don't forget to read the <a href="https://documentation.help/Process-Monitor/documentation.pdf" target="_blank" rel="noopener noreferrer">official</a> (and <a href="https://adamtheautomator.com/procmon/" target="_blank" rel="noopener noreferrer">unofficial</a>) documentation of <a href="https://docs.microsoft.com/en-us/sysinternals/downloads/procmon" target="_blank" rel="noopener noreferrer">Process Monitor</a>, one of the Windows dynamic analysis tools that, as you have seen, played a fundamental role for hunting logical vulnerabilities!
+				</h3>
+			</p>
+		</div>
+		
+		<br>
+		
+		<hr>
+		
+		<h3 align="center">
+			<i>If you liked this article, what do you think about buying me a unicorn? <a href="https://www.buymeacoffee.com/LucaBarile" target="_blank" rel="noopener noreferrer">Yeees! I'll buy it for you!</a></i> &#129412;
+		</h3>
+		
+	</body>
+</html>

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+<!-- <a href="" target="_blank" rel="noopener noreferrer">linkText</a> (open the link in a new tab and avoid tabnabbing) -->
+<!-- <a name="anchorName"></a> | <a href="#anchorName">link name</a> (anchor) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="ZDI-CAN-16318, Wacom Driver Arbitrary File Read Vulnerability">
+		<meta name="keywords" content="ARB_R, Arbitrary File Read, ArbitraryFileRead, Vulnerability, Wacom, Wacom Driver, Wacom Driver 6.3.45-1, Driver, Bug, Exploit, Security, Cybersecurity, 0-day, zero-day, Pen display, Graphics tablet, Logical vulnerability, Process Monitor, x64dbg, x32dbg, Static analysis, dynamic analysis, Write-up, POC, Proof Of Concept, Disclosure, Responsible disclosure, Luca Barile, Fix, Patch, Temp, Temp Folder, Windows Temp folder, Impersonation, Attack, WacomDesktopCenter, Wacom_Tablet, PrefUtil, Backup.wacomprefs, CreateSymlink.exe, CreateMountPoint.exe">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../../postsStyle.css">
+		
+		<title>ZDI-CAN-16318</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<!-- color the italic text (<i>code</i>) in green. It would be preferable to use the appropriate <code>foo</code> tag in the CSS instead. -->
+		<style type="text/css">i {color: green;}</style>
+	
+		<h1>Wacom Driver Arbitrary File Read Vulnerability</h1>
+		<h2 align="center" style="color:white">ZDI-CAN-16318 (0-day)</h2>
+		
+		<div>
+			<p>
+				<h2 align="center">Table of Contents &#128220;</h2>
+				<h3>
+					<table border="1" align="center">
+						<tr>
+							<td>
+								<ol>
+									<li><a href="#par1">Premise</a></li>
+									<li><a href="#par2">Why another exploit?</a></li>
+									<li><a href="#par3">Analyzing /custom parameter</a></li>
+									<li><a href="#par4">The mysterious WacomTabletDefaults.xml</a></li>
+									<li><a href="#par5">An idea (with some drawbacks) to exploit the /custom parameter</a></li>
+									<li><a href="#par6">Directory traversal attack</a></li>
+									<li><a href="#par7">Mount point + Symbolic link = Problem solved</a></li>
+									<li><a href="#par8">The Exploit</a></li>
+									<li><a href="#par9">POC</a></li>
+									<li><a href="#par10">Final considerations</a></li>
+								</ol>
+							</td>
+						</tr>
+					</table>
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par1"></a>
+				<h2>Premise &#9888;&#65039;</h2>
+				<h3>
+					This article aims to describe another way to exploit the Wacom Driver 6.3.45-1 vulnerability that I've already extensively detailed and discussed (in <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">this</a> report), so reading that report is necessary (and <u>strongly recommended</u>) to fully understand what you’re going to read (and <a href="../arb_rw/index.html" target="_blank" rel="noopener noreferrer">this</a> article can be helpful as well).<br>
+					The topics, treated in a concise way, can also be deepened through the links that you can find in the various paragraphs.<br>
+					<br>
+					<a href="https://en.wikipedia.org/wiki/Symbolic_link" target="_blank" rel="noopener noreferrer">Symbolic link</a> and <a href="https://en.wikipedia.org/wiki/NTFS_volume_mount_point" target="_blank" rel="noopener noreferrer">NTFS volume mount points</a> concepts are also crucial to fully understand what you’re going to read and, for this reason, understanding <a href="https://offsec.almond.consulting/intro-to-file-operation-abuse-on-Windows.html" target="_blank" rel="noopener noreferrer">this</a> article is strongly recommended as well.
+				</h3>
+			</p>
+				
+			<p>
+				<a name="par2"></a>
+				<h2>Why another exploit? &#10068;</h2>
+				<h3>
+					 In my previous <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">report</a> I've already explained how to exploit the <a href="../lpe/index.html#par6" target="_blank" rel="noopener noreferrer">vulnerability</a> to get a Local Privilege Escalation, so why should I explain how to exploit the same vulnerability to get an Arbitrary File Read primitive (that is less advantageous than the previous one)?<br>
+					 Mainly for the following reasons:
+					 
+					<ol>
+						<li>
+							Before getting a LPE I found out how to get an Arbitrary File Read primitive (and also an <a href="../arb_rw/index.html" target="_blank" rel="noopener noreferrer">Arbitrary File Read\Write</a> primitive), and I think it's a shame not to explain how I did it.
+						</li>
+						<li>
+							The technique I used to exploit the vulnerability is different from <a href="../lpe/index.html#par18" target="_blank" rel="noopener noreferrer">the one</a> I used to get a LPE. It contains valuable logical concepts, which may be useful for developing other attack techniques and may not be known to many researchers. 
+						</li>
+						<li>
+							If I were the reader, and were interested in deepening more about logical vulnerabilities, I would like to know as many <a href="../lpe/index.html#par24" target="_blank" rel="noopener noreferrer">attack techniques</a> as possible. 
+						</li>
+						<li>
+							For myself: explaining something is the best way to learn it (<a href="https://fs.blog/feynman-technique/" target="_blank" rel="noopener noreferrer">The Feynman Technique</a>).
+						</li>
+						<li>
+							To improve my poor written English &#128543;
+						</li>
+					</ol>
+					 
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par3"></a>
+				<h2>Analyzing /custom parameter &#128269;</h2>
+				<h3>
+					This time everything revolves around the <i>/custom</i> parameter shown in the <a href="../lpe/index.html#Wacom_Parameters" target="_blank" rel="noopener noreferrer">table</a>.<br>
+					Playing with this parameter I found out, using <a href="https://docs.microsoft.com/en-us/sysinternals/downloads/procmon" target="_blank" rel="noopener noreferrer">Process Monitor</a> (in the same way I did <a href="../lpe/index.html#par5" target="_blank" rel="noopener noreferrer">here</a>), that it expects a filename as a parameter; let's take an example to understand how it works:<br>
+					<i>/custom "foo"</i><br>
+					Assuming that Wacom Driver is installed on the C drive, then <a href="../lpe/index.html#par5" target="_blank" rel="noopener noreferrer">Remove.exe</a> performs the following operations:
+					
+					<ol>
+						<li>
+							The <i>.xml</i> extension is added to the file name, so we get <i>foo.xml</i>
+						</li>
+							
+						<li>
+							<i>foo.xml</i> is searched in the <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults</i> folder.
+						</li>
+						
+						<li>
+							If <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults\foo.xml</i> is found, its content is copied to <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i><br>
+							If WacomTabletDefaults.xml already exists it is overwritten, otherwise it is created.<br>
+							if <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults\foo.xml</i> isn't found, nothing interesting happens.
+						</li>
+					</ol>
+					
+					Summarizing it seems that the <i>/custom</i> parameter is used to create (or update) the WacomTabletDefaults.xml file with the new <i>foo.xml</i> file.<br>
+					But... What is WacomTabletDefaults.xml? What is it for? When is it used? &#129300;
+					
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par4"></a>
+				<h2>The mysterious WacomTabletDefaults.xml &#128123;</h2>
+				<h3>
+					 By reasoning on it we can hypothesize that, as the word itself says, &#8220;Defaults&#8221; stands for <u>default settings</u>, and therefore the xml file is probably used to restore the default settings or save any customizations that the user may make to his Wacom Tablet device.<br>
+					 <a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-customise#create-default-settings-for-one-or-more-users" target="_blank" rel="noopener noreferrer">This</a> paragraph (&#8220;Create default settings for one or more users&#8221;), which I found among the documentation that Wacom makes available for developers (<a href="http://developer-docs.wacom.com/" target="_blank" rel="noopener noreferrer">WACOM for Developers</a>), confirms the hypothesis just made.<br>
+					 In fact, summarizing what is written in that paragraph, the user can configure his own preferred settings for his Wacom Tablet device using the Wacom Tablet Preference File Utility (<i>C:\Program Files\Tablet\Wacom\PrefUtil.exe</i>). The operation of saving user preferences ends with the generation\update of the <i>WacomTabletDefaults.xml</i> file, which is populated with the set of xml values to determine how the Wacom device must behaves.<br>
+					 There may be several tags within that xml file (take a look at your <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i> file (if you have it)) such as, for example, the <a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-customise#prefslocation-tag" target="_blank" rel="noopener noreferrer">PrefsLocation</a> tag which allows the driver-updated <a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-customise#configuration-files---location-and-function" target="_blank" rel="noopener noreferrer">Wacom_Tablet.dat</a> to be written to a given location.<br>
+					 Ok, but is this information useful for the development of the exploit? NO! &#129315;<br>
+					 This information isn't essential, however, although I already had an idea in mind (illustrated in the following paragraphs) to exploit in an advantageous way (from the point of view of an attacker, obviously &#128520;) the logic according to which the <i>/custom</i> parameter is managed, I was too curious to understand what the hell the <i>WacomTabletDefaults.xml</i> file was for... I think that curiosity and the desire to understand what is happening under the hood, are two peculiar characteristics of a researcher, and vulnerability researchers are not an exception &#128104;&#8205;&#128187;
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par5"></a>
+				<h2>An idea (with some drawbacks) to exploit the /custom parameter &#128161;</h2>
+				<h3>
+					 The idea is to try to force Remove.exe to read any file of our choice instead of a generic xml file located in the <i>CustomDefaults</i> folder.<br>
+					 If we could do this we would be able to read any file (readable under the context of SYSTEM), since Remove.exe performs the third point of the previous list under the context of SYSTEM and copies the file we would like to read into the <i>C:\Program Files\Tablet\Wacom</i> folder, naming it <i>WacomTabletDefaults.xml</i>.<br>
+					 Since the regular user can read any file located in the <i>Wacom</i> folder, we would be able to get an Arbitrary File Read primitive.<br> 
+					 <br>
+					 Let us take a practical example!<br>
+					 The system administrator created the <i>secret.txt</i> file on his desktop and wrote a secret into it (eg the administrator password).<br>
+					 The security settings of that file are set so that only the system administrator and the <a href="https://docs.microsoft.com/en-us/windows/win32/services/localsystem-account" target="_blank" rel="noopener noreferrer">LocalSystem Account</a> (SYSTEM) can access the file for reading and writing; any other user (therefore also the regular user) has no right to access the file, <u>not even the right to read</u>.<br>
+					 If we were able to put the idea just described into practice, we would be able to force Remove.exe to read the <i>secret.txt</i> file and copy it into the <i>Wacom</i> folder. At this point the regular user can read the secret since he can read any file located in that folder.
+				</h3>
+			</p>
+		</div>
+
+		<img src="media/secret.txt.png" alt="" title="secret.txt security settings">
+		
+		<div>
+			<p>
+				<h3>
+					Unfortunately there are some problems we need to solve to put our idea into practice:
+					
+					<ol>
+						<li>
+							We can choose the name of the file to read but it must be in the <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults</i> folder.
+						</li>
+						
+						<li>
+							Since <i>Remove.exe</i> automatically adds the .xml extension to the file we want to read, we can only read xml files.
+						</li>
+					</ol>
+					
+					How can we read a file of any type located in any position?
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par6"></a>
+				<h2>Directory traversal attack &#128193;&#9194;</h2>
+				<h3>
+					<a href="https://en.wikipedia.org/wiki/Directory_traversal_attack" target="_blank" rel="noopener noreferrer">Directory traversal attack</a> (aka ..\ or path traversal) is the right attack for us because it allows to force <i>Remove.exe</i> to read from a folder of our choice instead of the <i>CustomDefaults</i> folder.<br>
+					<br>
+					Let us take a practical examples!<br>
+					<i>/custom "foo"</i> force <i>Remove.exe</i> to look for <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults\foo.xml</i><br>
+					<i>/custom "..\foo"</i> force <i>Remove.exe</i> to look for <i>C:\Program Files\Tablet\Wacom\32\foo.xml</i><br>
+					<i>/custom "..\..\foo"</i> force <i>Remove.exe</i> to look for <i>C:\Program Files\Tablet\Wacom\foo.xml</i><br>
+					<i>/custom "..\..\..\..\..\MyDir\foo"</i> force <i>Remove.exe</i> to look for <i>C:\MyDir\foo.xml</i><br>
+					<br>
+					Ok, surely this is a good starting point because, through this attack, we're able to read any xml file (located in a generic folder in the C drive) that we couldn't read.<br>
+					But we want something more! We want to read any type of file, even if it were located on a different drive; how can we do it?
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par7"></a>
+				<h2>Mount point + Symbolic link = Problem solved &#10004;&#65039;</h2>
+				<h3>
+					A mount point and a symbolic link are what we need to solve the last remaining problem (and remember that the hard links technique <a href="https://twitter.com/x9090/status/1090860643429736448" target="_blank" rel="noopener noreferrer">has been mitigated</a> in Windows 10).<br>
+					We can create a mount point to <a href="https://googleprojectzero.blogspot.com/2018/08/windows-exploitation-tricks-exploiting.html" target="_blank" rel="noopener noreferrer">\RPC Control</a> (which is an <a href="https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/object-directories" target="_blank" rel="noopener noreferrer">object directory</a>) and a symbolic link from <i>\RPC Control\Target.xml</i> to the file we want to read (e.g. <i>C:\Users\Admin\Desktop\secret.txt</i>).<br>
+					Finally we can use the previously described directory traversal attack, to force <i>Remove.exe</i> to look for the <i>Target.xml</i> file on the mount point that we've specially crafted.<br>
+					<br>
+					Let's take a practical examples!<br>
+					We want to read the <i>C:\Users\Admin\Desktop\secret.txt</i> file, but we don't have the privileges to read it.<br>
+					We can perform the following steps to solve the problem:
+					
+					<ol>		
+						<li>
+							Create the <i>C:\Users\StandardUser\Desktop\MountPoint</i> mount point to <i>\RPC Control</i>
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.xml</i> symbolic link to <i>C:\Users\Admin\Desktop\secret.txt</i>
+						</li>
+						
+						<li>
+							Force Remove.exe to execute the following malicious parameter<br>
+							<i>/custom "..\..\..\..\..\Users\StandardUser\Desktop\MountPoint\Target"</i>
+						</li>
+						
+						<li>
+							Remove.exe adds the .xml extension to the file name, so we get <i>Target.xml</i>
+						</li>
+						
+						<li>
+							Remove.exe, because of the directory traversal attack, read the xml file from <i>C:\Users\StandardUser\Desktop\MountPoint\Target.xml</i> instead of <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults\Target.xml</i><br>
+						</li>
+						
+						<li>
+							<i>C:\Users\StandardUser\Desktop\MountPoint\Target.xml</i> redirects Remove.exe to <i>\RPC Control\Target.xml</i>
+						</li>
+						
+						<li>
+							<i>\RPC Control\Target.xml</i> redirects Remove.exe to <i>C:\Users\Admin\Desktop\secret.txt</i><br>
+							(We're doing all these redirects because, as mentioned before, we can no longer use hard links).
+						</li>
+						
+						<li>
+							Remove.exe reads <i>C:\Users\Admin\Desktop\secret.txt</i> and copies it to <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i>
+						</li>
+						
+						<li>
+							Copy <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i> to <i>C:\Users\StandardUser\Desktop\secret.txt</i> (we can do this because <i>WacomTabletDefaults.xml</i> is readable by the regular user).
+						</li>
+						
+						<li>
+							Now we can read the secret from the <i>secret.txt</i> file that we were previously unable to read &#128064;
+						</li>
+					</ol>
+
+					As you can see it's possible to create a symbolic link from <i>\RPC Control\Foo.ext</i> to any file (even if not located in the C drive) of any type (we can specify its full path, therefore also its extension).<br>
+					Thanks to the mount point we can redirect the operations on a generic file to an object directory (<i>\RPC Control</i> in our case) and, thanks to the directory traversal attack, we can force Remove.exe to look for the xml file in the mount point instead of the CustomDefaults directory.<br>
+					This technique answers the question of the previous paragraph (we want to read any type of file, even if it were located on a different drive; how can we do it?).
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par8"></a>
+				<h2>The Exploit &#9760;&#65039;</h2>
+				<h3>
+					To better understand how to perform the point 4 of the previous list I suggest you read <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">my report</a>.<br>
+					However, in the steps of the following exploit, I will divide that point into sub steps to make it more understandable.<br>
+					As before, let's suppose that we want to read the <i>C:\Users\Admin\Desktop\secret.txt</i> file, but we don't have the privileges to read it.<br>
+					The exploit drops all the files it needs (<u>Backup.wacomprefs</u>, <u>CreateMountPoint.exe</u> and <u>CreateSymlink.exe</u>), creates the mount point and saves the file that the regular user wants to read in the folder from which it's executed (in this case the desktop of the regular user).<br>
+					I chose that folder to make sure the exploit can read and write in it. 
+					<br>
+					<br>
+					The exploit performs the following steps to allow us to read the file:
+
+					<ol>
+						<li>
+							Ask the user the path to the file he wants to read.<br>
+							(Let's suppose that he wants to read the <i>C:\Users\Admin\Desktop\secret.txt</i> file).
+						</li>
+					
+						<li>
+							Drop Backup.wacomprefs into the exploit folder (<i>C:\Users\StandardUser\Desktop</i>)
+						</li>
+						
+						<li>
+							Drop CreateMountPoint.exe into the exploit folder (<i>C:\Users\StandardUser\Desktop</i>)
+						</li>
+						
+						<li>
+							Drop CreateSymlink.exe into the exploit folder (<i>C:\Users\StandardUser\Desktop</i>)
+						</li>
+					
+						<li>
+							Create the <i>C:\Users\StandardUser\Desktop\MountPoint</i> mount point to <i>\RPC Control</i> through CreateMountPoint.exe
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.xml</i> symbolic link to <i>C:\Users\Admin\Desktop\secret.txt</i> through CreateSymlink.exe
+						</li>
+						
+						<li>
+							Create and write into WacomInstallI.txt the following malicious parameter:<br>
+							<i>/custom "..\..\..\..\..\Users\StandardUser\Desktop\MountPoint\Target" /silent /agree</i><br>
+							(Read <a href="../lpe/index.html#par6" target="_blank" rel="noopener noreferrer">this</a> and <a href="../lpe/index.html#par7" target="_blank" rel="noopener noreferrer">this</a> paragraph to understand the usefulness of WacomInstallI.txt; read <a href="../lpe/index.html#par5" target="_blank" rel="noopener noreferrer">this</a> to understand the usefulness of <i>/silent</i> and <i>/agree</i> parameters).
+						</li>
+						
+						<li>
+							Force Remove.exe to execute the parameter through the following command:<br>
+							<i>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</i><br>
+							(Read <a href="../lpe/index.html#par7" target="_blank" rel="noopener noreferrer">this</a> for more information).
+						</li>
+						
+						<li>
+							Wait a few seconds for Remove.exe to execute our malicious parameter; meanwhile the following steps are performed:
+						</li>
+						
+						<ol>
+							<li>
+								PrefUtil.exe restore the customized device settings from Backup.wacomprefs
+							</li>
+							
+							<li>
+								The restore operation triggers Remove.exe and forces it to execute our malicious parameter.
+							</li>
+							
+							<li>
+								Remove.exe adds the .xml extension to the file name, so we get <i>Target.xml</i>
+							</li>
+							
+							<li>
+								Remove.exe, because of the directory traversal attack, read the xml file from <i>C:\Users\StandardUser\Desktop\MountPoint\Target.xml</i> instead of <i>C:\Program Files\Tablet\Wacom\32\CustomDefaults\Target.xml</i>
+							</li>
+							
+							<li>
+								<i>C:\Users\StandardUser\Desktop\MountPoint\Target.xml</i> redirects Remove.exe to <i>\RPC Control\Target.xml</i>
+							</li>
+						
+							<li>
+								<i>\RPC Control\Target.xml</i> redirects Remove.exe to <i>C:\Users\Admin\Desktop\secret.txt</i><br>
+								(We're doing all these redirects because, as mentioned before, we can no longer use hard links).
+							</li>
+							
+							<li>
+								Remove.exe reads <i>C:\Users\Admin\Desktop\secret.txt</i> and copies it to <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i>
+							</li>
+							
+						</ol>
+						
+						<li>
+							Copy <i>C:\Program Files\Tablet\Wacom\WacomTabletDefaults.xml</i> to <i>C:\Users\StandardUser\Desktop\secret.txt</i><br>
+							(The exploit can do this because <i>WacomTabletDefaults.xml</i> is readable by the regular user).
+						</li>
+						
+						<li>
+							Now the regular user can read the secret from the <i>C:\Users\StandardUser\Desktop\secret.txt</i> file.
+						</li>
+						
+						<li>
+							Cleaning operations:
+							
+							<ol>
+								<li>
+									Terminate CreateSymlink.exe and delete the <i>\RPC Control\Target.xml</i> symbolic link.
+								</li>
+						
+								<li>
+									Delete Backup.wacomprefs
+								</li>
+								
+								<li>
+									Delete CreateMountPoint.exe
+								</li>
+								
+								<li>
+									Delete the mount point to <i>\RPC Control</i>.
+								</li>
+								
+								<li>
+									Delete CreateSymlink.exe.
+								</li>
+							</ol>
+							
+						</li>
+					</ol>
+					
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_R" target="_blank" rel="noopener noreferrer">Here</a> you can find the C# source code of my exploit (Visual Studio Project.zip).<br>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_R" target="_blank" rel="noopener noreferrer">Here</a> you can find the executable file (Exploit.exe).<br>
+					<br>
+					CreateMountPoint.exe and CreateSymlink.exe are programs developed by <a href="https://twitter.com/tiraniddo" target="_blank" rel="noopener noreferrer">James Forshaw</a> and are downloadable from his <a href="https://github.com/googleprojectzero/symboliclink-testing-tools" target="_blank" rel="noopener noreferrer">symboliclink-testing-tools</a> repository, respectively <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateMountPoint" target="_blank" rel="noopener noreferrer">here</a> and <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateSymlink" target="_blank" rel="noopener noreferrer">here</a>.
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par9"></a>
+				<h2>POC &#127910;</h2>
+				<h3>
+					I have tested the exploit only for Wacom Driver 6.3.45-1 but, most likely, it also works for the previous versions (and I hope not on the future ones &#128580;). 
+				</h3>
+			</p>
+
+		</div>
+		
+		<img src="media/POC.gif" alt="" title="Exploitation Proof Of Concept">
+		
+		<div>
+			<p>
+				<a name="par10"></a>
+				<h2>Final considerations</h2>
+				<h3>
+					The conclusions are the same as I wrote in <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">my main report</a>; I report below, for convenience, the most interesting paragraphs.
+					
+					<ul>
+						<li>
+							<a href="../lpe/index.html#par20" target="_blank" rel="noopener noreferrer">How to fix the vulnerability</a> &#128657;
+						</li>
+						 
+						<li>
+							<a href="../lpe/index.html#par23" target="_blank" rel="noopener noreferrer">Conclusion</a>
+						</li>
+						
+						<li>
+							<a href="../lpe/index.html#par24" target="_blank" rel="noopener noreferrer">Useful readings and references</a> &#128279;
+						</li>
+					</ul>
+				
+					Since the new concepts introduced by this report are essentially symbolic links and mount points, I want to add some other articles that may be useful to those who know nothing (or little) about them:
+				
+					<ul>
+						<li>
+							<a href="https://www.cyberark.com/resources/threat-research-blog/follow-the-link-exploiting-symbolic-links-with-ease" target="_blank" rel="noopener noreferrer">Symbolic links</a> - Eran Shimony &#128279;
+						</li>
+						 
+						<li>
+							<a href="https://nixhacker.com/understanding-and-exploiting-symbolic-link-in-windows/" target="_blank" rel="noopener noreferrer">Symbolic links</a> - Shubham Dubey &#128279;
+						</li>
+						
+						<li>
+							<a href="https://www.computerhope.com/jargon/j/junction.htm" target="_blank" rel="noopener noreferrer">NTFS Mount point (or NTFS Junctions)</a> - Computer Hope &#128279;
+						</li>
+						
+						
+						<li>
+							<a href="https://lucabarile.github.io/Blog/toctou/index.html" target="_blank" rel="noopener noreferrer">NTFS Mount point (or NTFS Junctions) &amp; Oplock</a> - Luca Barile &#128279;
+						</li>
+						
+						<li>
+							<a href="https://tempest-sec.medium.com/vulnerability-in-avira-security-suite-enables-for-privilege-escalation-attacks-e57cdad8cfb3" target="_blank" rel="noopener noreferrer">Symbolic links &amp; NTFS Mount point (or NTFS Junctions)</a> - Tempest Security &#128279;
+						</li>
+					</ul>
+					
+					And don't forget to read <a href="../arb_rw/index.html" target="_blank" rel="noopener noreferrer">my report</a> in which I explain how to exploit the same vulnerability to get an Arbitrary File <u>Read\Write</u> primitive (I think, as regards the Arbitrary File <u>Read</u> primitive, it's one of the most unusual one that I've ever seen &#128514;)!<br>
+					It's the last report for this vulnerability, I promise &#10071;
+				</h3>
+			</p>
+		</div>
+		
+		<br>
+		
+		<hr>
+		
+		<h3 align="center">
+			<em>If you liked this article, what do you think about buying me a unicorn? <a href="https://www.buymeacoffee.com/LucaBarile" target="_blank" rel="noopener noreferrer">Yeees! I'll buy it for you!</a></em> &#129412;
+		</h3>
+		
+	</body>
+</html>

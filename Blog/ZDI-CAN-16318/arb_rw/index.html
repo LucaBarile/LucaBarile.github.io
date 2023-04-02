@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+<!-- <a href="" target="_blank" rel="noopener noreferrer">linkText</a> (open the link in a new tab and avoid tabnabbing) -->
+<!-- <a name="anchorName"></a> | <a href="#anchorName">link name</a> (anchor) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="Wacom Driver Arbitrary File Read\Write Vulnerability">
+		<meta name="keywords" content="ZDI-CAN-16318, ARB_R, ARB_W, Arbitrary File Read, Arbitrary File Write, ArbitraryFileRead, ArbitraryFileWrite, Vulnerability, Wacom, Wacom Driver, Wacom Driver 6.3.45-1, Driver, Bug, Exploit, Security, Cybersecurity, 0-day, zero-day, Pen display, Graphics tablet, Logical vulnerability, Process Monitor, x64dbg, x32dbg, Static analysis, dynamic analysis, Write-up, POC, Proof Of Concept, Disclosure, Responsible disclosure, Luca Barile, Fix, Patch, Temp, Temp Folder, Windows Temp folder, Impersonation, Attack, WacomDesktopCenter, Wacom_Tablet, PrefUtil, Backup.wacomprefs">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../../postsStyle.css">
+		
+		<title>ZDI-CAN-16318</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<!-- color the italic text (<i>code</i>) in green. It would be preferable to use the appropriate <code>foo</code> tag in the CSS instead. -->
+		<style type="text/css">i {color: green;}</style>
+	
+		<h1>Wacom Driver Arbitrary File Read\Write Vulnerability</h1>
+		<h2 align="center" style="color:white">ZDI-CAN-16318 (0-day)</h2>
+		
+		<div>
+			<p>
+				<h2 align="center">Table of Contents &#128220;</h2>
+				<h3>
+					<table border="1" align="center">
+						<tr>
+							<td>
+								<ol>
+									<li><a href="#par1">Premise</a></li>
+									<li><a href="#par2">Why another exploit?</a></li>
+									<li><a href="#par3">Analyzing /hex parameter</a></li>
+									<li><a href="#par4">From /hex parameter to Arbitrary File Read primitive</a></li>
+									<li><a href="#par5">POC - Arbitrary File Read</a></li>
+									<li><a href="#par6">From /hex parameter to Arbitrary File Write* primitive</a></li>
+									<li><a href="#par7">POC - Arbitrary File Write*</a></li>
+									<li><a href="#par8">Two primitives, one exploit</a></li>
+									<li><a href="#par9">Final considerations</a></li>
+								</ol>
+							</td>
+						</tr>
+					</table>
+				</h3>	
+			
+				<a name="par1"></a>
+				<h2>Premise</h2>
+				<h3>
+					This article aims to describe another way to exploit the Wacom Driver 6.3.45-1 vulnerability that I've already extensively detailed and discussed (in <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">this</a> report), so reading that report is necessary (and <u>strongly recommended</u>) to fully understand what you’re going to read (and <a href="../arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> article can be helpful as well).<br>
+					The topics, treated in a technical and concise way, can also be deepened through the links that you can find in the various paragraphs.
+				</h3>
+				
+				<a name="par2"></a>
+				<h2>Why another exploit? &#10068;</h2>
+				<h3>
+					 In my previous <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">report</a> I've already explained how to exploit the <a href="../lpe/index.html#par6" target="_blank" rel="noopener noreferrer">vulnerability</a> to get a Local Privilege Escalation, so why should I explain how to exploit the same vulnerability to get an Arbitrary File Read\Write primitive (that is less advantageous than the previous one)?<br>
+					 Mainly for the following two reasons:
+					 
+					<ol>
+						<li>
+							Before getting a LPE I found out how to get an Arbitrary File Read\Write primitive (and also an <a href="../arb_r/index.html" target="_blank" rel="noopener noreferrer">Arbitrary File Read</a> primitive), and I think it's a shame not to explain how I did it.
+						</li>
+						<li>
+							The technique I used to exploit the vulnerability is different from <a href="../lpe/index.html#par18" target="_blank" rel="noopener noreferrer">the one</a> I used to get a LPE. It contains valuable logical concepts, which may be useful for developing other attack techniques and may not be known to many researchers. 
+						</li>
+						<li>
+							If I were the reader, and were interested in deepening more about logical vulnerabilities, I would like to know as many <a href="../lpe/index.html#par24" target="_blank" rel="noopener noreferrer">attack techniques</a> as possible. 
+						</li>
+						<li>
+							For myself: explaining something is the best way to learn it (<a href="https://fs.blog/feynman-technique/" target="_blank" rel="noopener noreferrer">The Feynman Technique</a>).
+						</li>
+						<li>
+							To improve my poor written English &#128543;
+						</li>
+					</ol>
+					 
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par3"></a>
+				<h2>Analyzing /hex parameter &#128269;</h2>
+				<h3>
+					This time everything revolves around the <i>/hex</i> parameter shown in the <a href="../lpe/index.html#Wacom_Parameters" target="_blank" rel="noopener noreferrer">table</a>.<br>
+					Playing with this parameter I found out, using <a href="https://docs.microsoft.com/en-us/sysinternals/downloads/procmon" target="_blank" rel="noopener noreferrer">Process Monitor</a> (in the same way I did <a href="../lpe/index.html#par5" target="_blank" rel="noopener noreferrer">here</a>), that it expects a file path as a parameter; let's take an example to understand how it works:<br>
+					<i>/hex "C:\foo.jpg"</i><br>
+					<a href="../lpe/index.html#par5" target="_blank" rel="noopener noreferrer">Remove.exe</a> performs the following operations under the context of SYSTEM:
+					
+					<ol>
+						<li>
+							Reads the contents of <i>C:\foo.jpg</i>
+						</li>
+							
+						<li>
+							Converts the read contents to hexadecimal format.
+						</li>
+						
+						<li>
+							Creates the <i>C:\foo.jpg.txt</i> file and saves the converted contents in it.
+						</li>
+					</ol>
+					
+					Have you already figured out how to exploit this behavior? If you've already read <a href="../arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> article, you probably have. 
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par4"></a>
+				<h2>From /hex parameter to Arbitrary File Read primitive &#128161;</h2>
+				<h3>
+					If you've already read <a href="../arb_r/index.html#par7" target="_blank" rel="noopener noreferrer">this</a> paragraph you probably already guessed that, even in this case, a mount point and a symbolic link are what we need to get what we want.<br>
+					In this case we don't need a directory traversal attack because, through the <i>/hex</i> parameter we can directly specify the full path of the file we want to read.<br>
+					Theoretically, since we can directly specify the file on which we don't have read permission, it's not necessary to use a mount point combined with a symbolic link in this case, because <i>Remove.exe</i> would generate a copy of the file (in hexadecimal format) that the regular user can read.<br>
+					But... What if the regular user doesn't have read permission on the entire folder where the file is located? It couldn't read the hex file created by <i>Remove.exe</i> either! Therefore, to avoid this situation, we can use a mount point combined with a symbolic link as it was done <a href="../arb_r/index.html#par7" target="_blank" rel="noopener noreferrer">here</a>, but with the following slight variations:<br>
+					<br>
+					 
+					We want to read the <i>C:\Users\Admin\Desktop\secret.txt</i> file, but we don't have the privileges to read it.<br>
+					We can perform the following steps to solve the problem:
+					
+					<ol>		
+						<li>
+							Create the <i>C:\Users\StandardUser\Desktop\MountPoint</i> mount point to <i>\RPC Control</i>
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.txt</i> symbolic link to <i>C:\Users\Admin\Desktop\secret.txt</i>
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.txt.txt</i> symbolic link to a folder that the user can read (e.g. <i>C:\Users\StandardUser\Desktop\Target.txt.hex</i>).
+						</li>
+						
+						<li>
+							Force Remove.exe to execute the following malicious parameter:<br>
+							<i>/hex "C:\Users\StandardUser\Desktop\MountPoint\Target.txt"</i>
+						</li>
+						
+						<li>
+							<i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt</i> redirects Remove.exe to <i>\RPC Control\Target.txt</i>
+						</li>
+						
+						<li>
+							<i>\RPC Control\Target.txt</i> redirects Remove.exe to <i>C:\Users\Admin\Desktop\secret.txt</i><br>
+							(We're doing all these redirects because we can no longer use hard links).
+						</li>
+						
+						<li>
+							Remove.exe reads <i>C:\Users\Admin\Desktop\secret.txt</i> and copies it contents (converted in hexadecimal format) to <i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt.txt</i>
+						</li>
+						
+						<li>
+							<i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt.txt</i> redirects Remove.exe to <i>\RPC Control\Target.txt.txt</i>
+						</li>
+						
+						<li>
+							<i>\RPC Control\Target.txt.txt</i> redirects Remove.exe to <i>C:\Users\StandardUser\Desktop\secret.hex</i> (where the file is actually written).
+						</li>
+						
+						<li>
+							Now the regular user can finally read the <i>C:\Users\StandardUser\Desktop\secret.hex</i> file &#128064;
+						</li>
+					</ol>
+					
+					As you can see, even if the regular user can't read any file located in the admin's desktop, this wouldn't be a problem because the copy (in hexadecimal format) of the file he wants to read, isn't saved in the same folder as the source file, but in a folder where the regular user has read permissions (<i>C:\Users\StandardUser\Desktop</i> in this case).<br>
+					<br>
+					There is only one thing left to do...<br>
+					The file that we couldn't read is now readable (<i>C:\Users\StandardUser\Desktop\secret.hex</i>), however it has been converted to hexadecimal according to <a href="https://github.com/LucaBarile/HexFileConverter#hex-file-format" target="_blank" rel="noopener noreferrer">this</a> format (established by <i>Remove.exe</i>). What we need is a tool that can perform the reverse conversion to get the original file back.<br>
+					To save some time I surfed the net for a tool that could work well for this purpose, but I didn't find anything convincing, so I decided to develop it on my own: <a href="https://github.com/LucaBarile/HexFileConverter#hexfileconverter" target="_blank" rel="noopener noreferrer">HexFileConverter</a>.<br>
+					For my purpose it's sufficient to implement the conversion algorithm from the hexadecimal format (established by <i>Remove.exe</i>) to the original one but, since I was there, I also implemented the algorithm for the reverse conversion.<br>
+					<a href="https://github.com/LucaBarile/HexFileConverter#usage" target="_blank" rel="noopener noreferrer">Here</a> you can see how HexFileConverter works.<br>
+					<a href="https://github.com/LucaBarile/HexFileConverter/raw/main/HexFileConverter/HexFileConverter/bin/Release/HexFileConverter.exe" target="_blank" rel="noopener noreferrer">Here</a> you can download HexFileConverter.<br>
+					Now, using HexFileConverter, you can convert the hex file and read its contents in the original format &#10004;&#65039;
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par5"></a>
+				<h2>POC - Arbitrary File Read &#127910;</h2>
+				<h3>
+					I have tested the exploit only for Wacom Driver 6.3.45-1 but, most likely, it also works for the previous versions (and I hope not on the future ones &#128580;).
+				</h3>
+			</p>
+
+		</div>
+
+		<img src="media/POC_ARB_R.gif" alt="" title="Arbitrary File Read Exploitation Proof Of Concept">
+
+		<div>
+		
+			<p>
+				<h3>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_RW" target="_blank" rel="noopener noreferrer">Here</a> you can find the C# source code of my exploit (Visual Studio Project.zip).<br>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_RW" target="_blank" rel="noopener noreferrer">Here</a> you can find the executable file (Exploit.exe).<br>
+					<br>
+					CreateMountPoint.exe and CreateSymlink.exe are programs developed by <a href="https://twitter.com/tiraniddo" target="_blank" rel="noopener noreferrer">James Forshaw</a> and are downloadable from his <a href="https://github.com/googleprojectzero/symboliclink-testing-tools" target="_blank" rel="noopener noreferrer">symboliclink-testing-tools</a> repository, respectively <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateMountPoint" target="_blank" rel="noopener noreferrer">here</a> and <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateSymlink" target="_blank" rel="noopener noreferrer">here</a>.
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par6"></a>
+				<h2>From /hex parameter to Arbitrary File Write* primitive &#128161;</h2>
+				<h3>
+					You may have noticed the asterisk next to Write, this means that it's possible to obtain an Arbitrary File Write primitive <u>with partial control over the contents of the written\overwritten file</u>, just like in <a href="file:///D:/Sito%20Web/Blog/cve-2022-0001/lpe/index.html#par9" target="_blank" rel="noopener noreferrer">this</a> case with the <i>/debug</i> parameter.<br>
+					The idea used to obtain the Arbitrary File Write* primitive is very similar to the one used to obtain the Arbitrary File Read primitive previously described but, in this case, the symbolic link to the file to be read points to a file whose contents (converted to hexadecimal format) will be written in the file we want to write (or overwrite), while the symbolic link from <i>\RPC Control\Target.txt.txt</i> points to the file we want to write (or overwrite).<br>
+					<br>
+					Let's take a practical examples!<br>
+					We want to overwrite the <i>C:\Windows\win.ini</i> file, but we don't have the privileges to write it.<br>
+					We can perform the following steps to solve the problem:
+					
+					<ol>		
+						<li>
+							Create the <i>C:\Users\StandardUser\Desktop\MountPoint</i> mount point to <i>\RPC Control</i>
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.txt</i> symbolic link to <i>C:\Users\StandardUser\Desktop\ARB_RW\FileToConvertAndWrite.txt</i><br>
+							Note: <i>FileToConvertAndWrite.txt</i> is the file whose content (converted to hexadecimal format) will be written in the file we want to write\overwrite (<i>win.ini</i> in this case). If, for example, we want to overwrite the <i>win.ini</i> file with the <i>4F 56 45 52 57 52 49 54 54 45 4E</i> string, we must write into <i>FileToConvertAndWrite.txt</i> the <i>OVERWRITTEN</i> string (because <i>4F 56 45 52 57 52 49 54 54 45 4E</i> is the conversion of the text <i>OVERWRITTEN</i> into hexadecimal format (try <a href="http://www.unit-conversion.info/texttools/hexadecimal/" target="_blank" rel="noopener noreferrer">this</a> tool to do some tests)). A special case occurs when <i>FileToConvertAndWrite.txt</i> file is left blank; in this case the file we want to write\overwrite will  be blank too.
+						</li>
+						
+						<li>
+							Create the <i>\RPC Control\Target.txt.txt</i> symbolic link to the file we want to write\overwrite (<i>C:\Windows\win.ini</i> in this case).<br>
+							Note: if the file pointed by the symbolic link doesn't exist, it will be created, otherwise it will be overwritten. 
+						</li>
+						
+						<li>
+							Force Remove.exe to execute the following malicious parameter:<br>
+							<i>/hex "C:\Users\StandardUser\Desktop\MountPoint\Target.txt"</i>
+						</li>
+						
+						<li>
+							<i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt</i> redirects Remove.exe to <i>\RPC Control\Target.txt</i>
+						</li>
+						
+						<li>
+							<i>\RPC Control\Target.txt</i> redirects Remove.exe to <i>C:\Users\StandardUser\Desktop\ARB_RW\FileToConvertAndWrite.txt</i><br>
+							(We're doing all these redirects because we can no longer use hard links).
+						</li>
+						
+						<li>
+							Remove.exe reads <i>C:\Users\StandardUser\Desktop\ARB_RW\FileToConvertAndWrite.txt</i> and copies it contents (converted in hexadecimal format) to <i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt.txt</i>
+						</li>
+						
+						<li>
+							<i>C:\Users\StandardUser\Desktop\MountPoint\Target.txt.txt</i> redirects Remove.exe to <i>\RPC Control\Target.txt.txt</i>
+						</li>
+						
+						<li>
+							<i>\RPC Control\Target.txt.txt</i> redirects Remove.exe to <i>C:\Windows\win.ini</i> (where the hexadecimal content is actually written).
+						</li>
+						
+						<li>
+							Now the contents of the target file (<i>C:\Windows\win.ini</i>) has been overwritten with the contents (converted to hexadecimal format) of <i>FileToConvertAndWrite.txt</i>
+						</li>
+					</ol>
+					
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par7"></a>
+				<h2>POC - Arbitrary File Write* &#127910;</h2>
+				<h3>
+					I have tested the exploit only for Wacom Driver 6.3.45-1 but, most likely, it also works for the previous versions (and I hope not on the future ones &#128580;).
+				</h3>
+			</p>
+		
+		</div>
+		
+		<img src="media/POC_ARB_W.gif" alt="" title="Arbitrary File Write* Exploitation Proof Of Concept">
+		
+		<div>
+			
+			<p>
+				<h3>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_RW" target="_blank" rel="noopener noreferrer">Here</a> you can find the C# source code of my exploit (Visual Studio Project.zip).<br>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/ARB_RW" target="_blank" rel="noopener noreferrer">Here</a> you can find the executable file (Exploit.exe).<br>
+					<br>
+					CreateMountPoint.exe and CreateSymlink.exe are programs developed by <a href="https://twitter.com/tiraniddo" target="_blank" rel="noopener noreferrer">James Forshaw</a> and are downloadable from his <a href="https://github.com/googleprojectzero/symboliclink-testing-tools" target="_blank" rel="noopener noreferrer">symboliclink-testing-tools</a> repository, respectively <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateMountPoint" target="_blank" rel="noopener noreferrer">here</a> and <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateSymlink" target="_blank" rel="noopener noreferrer">here</a>.
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par8"></a>
+				<h2>Two primitives, one exploit &#9760;&#65039;</h2>
+				<h3>
+					It seemed to me more convenient to combine the read and write primitives in a single exploit instead of writing two separate ones.<br>
+					As you have noticed from the two previous POCs, the user can easily choose which of the two primitives to use, typing <i>1</i> for the Arbitrary File Read and <i>2</i> for the Arbitrary File Write*.<br>
+					The primitives are implemented via the two respective functions (<i>arbr()</i> and <i>arbw()</i>) which you can easily find in Program.cs (inside Visual Studio Project.zip) and separate for your uses.
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par9"></a>
+				<h2>Final considerations</h2>
+				<h3>
+					The conclusions are the same as I wrote in <a href="../lpe/index.html" target="_blank" rel="noopener noreferrer">my main report</a>; I report below, for convenience, the most interesting paragraphs.
+					
+					<ul>
+						<li>
+							<a href="../lpe/index.html#par20" target="_blank" rel="noopener noreferrer">How to fix the vulnerability</a> &#128657;
+						</li>
+						 
+						<li>
+							<a href="../lpe/index.html#par23" target="_blank" rel="noopener noreferrer">Conclusion</a>
+						</li>
+						
+						<li>
+							<a href="../lpe/index.html#par24" target="_blank" rel="noopener noreferrer">Useful readings and references</a> &#128279;
+						</li>
+					</ul>
+				
+					Since the new concepts introduced by this report are essentially symbolic links and mount points, I want to add some other articles that may be useful to those who know nothing (or little) about them:
+				
+					<ul>
+						<li>
+							<a href="https://www.cyberark.com/resources/threat-research-blog/follow-the-link-exploiting-symbolic-links-with-ease" target="_blank" rel="noopener noreferrer">Symbolic links</a> - Eran Shimony &#128279;
+						</li>
+						 
+						<li>
+							<a href="https://nixhacker.com/understanding-and-exploiting-symbolic-link-in-windows/" target="_blank" rel="noopener noreferrer">Symbolic links</a> - Shubham Dubey &#128279;
+						</li>
+						
+						<li>
+							<a href="https://www.computerhope.com/jargon/j/junction.htm" target="_blank" rel="noopener noreferrer">NTFS Mount point (or NTFS Junctions)</a> - Computer Hope &#128279;
+						</li>
+						
+						
+						<li>
+							<a href="https://lucabarile.github.io/Blog/toctou/index.html" target="_blank" rel="noopener noreferrer">NTFS Mount point (or NTFS Junctions) &amp; Oplock</a> - Luca Barile &#128279;
+						</li>
+						
+						<li>
+							<a href="https://tempest-sec.medium.com/vulnerability-in-avira-security-suite-enables-for-privilege-escalation-attacks-e57cdad8cfb3" target="_blank" rel="noopener noreferrer">Symbolic links &amp; NTFS Mount point (or NTFS Junctions)</a> - Tempest Security &#128279;
+						</li>
+					</ul>
+					
+					And don't forget to read <a href="../arb_r/index.html" target="_blank" rel="noopener noreferrer">my report</a> in which I explain how to exploit the same vulnerability to get an Arbitrary File Read primitive!
+				</h3>
+			</p>
+		
+		</div>
+		
+		<br>
+		
+		<hr>
+		
+		<h3 align="center">
+			<i>If you liked this article, what do you think about buying me a unicorn? <a href="https://www.buymeacoffee.com/LucaBarile" target="_blank" rel="noopener noreferrer">Yeees! I'll buy it for you!</a></i> &#129412;
+		</h3>
+		
+	</body>
+</html>
