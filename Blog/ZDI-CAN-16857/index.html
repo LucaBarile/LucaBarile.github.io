@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+
+<!-- https://www.amp-what.com/unicode/search/icon -->
+<!-- Serif - Times - Times New Roman (default font) -->
+<!-- <a href="" target="_blank" rel="noopener noreferrer">linkText</a> (open the link in a new tab and avoid tabnabbing) -->
+<!-- <a name="anchorName"></a> | <a href="#anchorName">link name</a> (anchor) -->
+
+<html lang="en">
+
+	<head>
+		
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="Wacom Driver Local Privilege Escalation Vulnerability">
+		<meta name="keywords" content="ZDI-CAN-16857, LPE, Local Privilege Escalation, Privilege Escalation, Vulnerability, Wacom, Wacom Driver, Wacom Driver 6.3.45-1, Driver, Bug, Exploit, Security, Cybersecurity, 0-day, zero-day, Pen display, Graphics tablet, Logical vulnerability, Process Monitor, x64dbg, x32dbg, Static analysis, dynamic analysis, Write-up, Arbitrary File Write, Arbitrary File Read, POC, Proof Of Concept, SYSTEM, SYSTEM shell, NT AUTHORITY\SYSTEM, NT AUTHORITY, EOP, Elevation Of Privilege, ZDI, Zero Day Initiative, Disclosure, Responsible disclosure, Luca Barile, Fix, Patch, PrefUtil.exe, Preference Utility, WacomTouch.xml, FTD2XX.dll, Phantom dll, DLL hijacking, Impersonation, Attack, Timeline, Useful readings, WacomDesktopCenter, Wacom_Tablet, PrefUtil, Backup.wacomprefs, package-logs, symbolic link, mount point, Link Following">
+		<meta name="author" content="Luca Barile">
+		
+		<link rel="stylesheet" href="../postsStyle.css">
+		
+		<title>ZDI-CAN-16857</title>
+    
+	</head>
+
+	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
+	
+		<h1>Wacom Driver Local Privilege Escalation Vulnerability</h1>
+		<h2 align="center" style="color:white">ZDI-CAN-16857 (0-day)</h2>
+		
+		<div>
+			<p>
+				<h2 align="center">Table of Contents &#128220;</h2>
+				<h3>
+					<table border="1" align="center">
+						<tr>
+							<td>
+								<ol>
+									<li><a href="#par1">Premise</a></li>
+									<li><a href="#par2">How did I discover the vulnerability?</a></li>
+									<li><a href="#par3">Analyzing suspicious operations of PrefUtil.exe</a></li>
+									<li><a href="#par4">An Arbitrary File Write primitive can be useful</a></li>
+									<li><a href="#par5">Oh?! Is FTD2XX.dll a phantom DLL?</a></li>
+									<li><a href="#par6">Different ways to escalate our privileges</a></li>
+									<li><a href="#par7">The Exploit</a></li>
+									<li><a href="#par8">POC</a></li>
+									<li><a href="#par9">How to fix the vulnerability</a></li>
+									<li><a href="#par10">Vulnerability disclosure timeline</a></li>
+									<li><a href="#par11">Final considerations</a></li>
+								</ol>
+							</td>
+						</tr>
+					</table>
+				</h3>	
+			</p>
+			
+			<p>
+				<a name="par1"></a>
+				<h2>Premise</h2>
+				<h3>
+					This article describes a vulnerability affecting Wacom Driver <a href="https://github.com/LucaBarile/ZDI-CAN-16857/tree/main/WacomTablet_6.3.46-1" target="_blank" rel="noopener noreferrer">6.3.46-1</a> and <a href="https://github.com/LucaBarile/ZDI-CAN-16318/tree/main/WacomTablet_6.3.45-1" target="_blank" rel="noopener noreferrer">6.3.45-1</a> (it probably affects older versions as well but I haven't tested them) and a way by which this vulnerability can be exploited for a Local Privilege Escalation.<br> 
+					Since I've already extensively detailed and discussed <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">here</a> a similar vulnerability, I highly recommend reading it to better understand what you’re going to read (also <a href="../ZDI-CAN-16318/arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html" target="_blank" rel="noopener noreferrer">this</a> reports can be helpful as well).
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par2"></a>
+				<h2>How did I discover the vulnerability?</h2>
+				<h3>
+					The short answer is: <u>by chance!</u><br>
+					I was looking for a way to take advantage of <a href="../ZDI-CAN-16318/arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html" target="_blank" rel="noopener noreferrer">this</a> technique (via the respective <code>/custom</code> and <code>/hex</code> parameters) without resorting to the use of the <a href="../ZDI-CAN-16318/lpe/index.html#par5" target="_blank" rel="noopener noreferrer">WacomInstallI.txt</a> file to pass parameters to <code>Remove.exe</code>.<br>
+					I was essentially looking for another vulnerability that would allow me to trigger <code>Remove.exe</code> by passing it those parameters since probably, when Wacom will fix <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">ZDI-CAN-16318</a>, <code>WacomInstallI.txt</code> will no longer be accessible by the regular user (or at least I hope... &#129310;).<br>
+					I started looking for a way to trigger <code>Remove.exe</code> by passing it the <code>/custom</code> parameter through <code>C:\Program Files\Tablet\Wacom\PrefUtil.exe</code>, since <a href="http://developer-docs.wacom.com/faqs/docs/q-tablet/tablet-customise#create-default-settings-for-one-or-more-users" target="_blank" rel="noopener noreferrer">here</a> it's written that individual users can configure their own Wacom device settings using the Wacom Tablet Preference File Utility (<code>PrefUtil.exe</code>).<br>
+					Playing a bit with <code>PrefUtil.exe</code> however, instead of finding what I was looking for, I noticed <u>some suspicious operations</u> and I decided to call off the search to analyze them in detail; their analysis led me to discover the vulnerability I'm about to describe.<br>
+					<br>
+					PS Between one thing and another I no longer continued with the initial goal (to look for another vulnerability that allows to trigger <code>Remove.exe</code> by passing it the <code>/custom</code> and\or <code>/hex</code> parameter) &#128577;<br>
+					So, dear reader, do it yourself! Carrying out a responsible disclosure or, if you prefer, if you find any clues, report it to me via mail at <i>luca.barile.research@gmail.com</i> &#128231;
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par3"></a>
+				<h2>Analyzing suspicious operations of PrefUtil.exe &#128269;</h2>
+				<h3>
+					Playing a bit with the GUI of <code>PrefUtil.exe</code>, I noticed (using <a href="https://docs.microsoft.com/en-us/sysinternals/downloads/procmon" target="_blank" rel="noopener noreferrer">Process Monitor</a>) that, by pressing the &quot;Package logs&quot; button, the <code>C:\Wacom</code> and <code>C:\Wacom\Logs</code> folders are created and the files indicated in the image below are copied into them. 
+				</h3>
+			</p>
+			
+		</div>
+			
+		<img src="media/PrefUtil_PackageLogs.png" alt="" title="Behavior of Package logs button">
+			
+		<div>
+			
+			<p>
+				<h3>
+					As the GroupBox itself says, the files written in the <code>C:\Wacom\Logs</code> folder are log files used for diagnostic purposes, and there would be nothing wrong with these operations if it weren't for these two facts:
+					
+					<ul>
+						<li>
+							<u>Some</u> of these files are written without <a href="https://docs.microsoft.com/en-us/windows/win32/com/impersonation" target="_blank" rel="noopener noreferrer">impersonating</a> the regular user by the <code>WTabletServicePro.exe</code> service which is running under the context of <a href="https://docs.microsoft.com/en-us/windows/win32/services/localsystem-account" target="_blank" rel="noopener noreferrer">SYSTEM</a>.
+						</li>
+							
+						<li>
+							The regular user has <u>full access</u> to the <code>C:\Wacom</code> and <code>C:\Wacom\Logs</code> folders.
+						</li>
+					</ul>
+					
+					Probably, if you have read <a href="../ZDI-CAN-16318/arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html" target="_blank" rel="noopener noreferrer">this</a> report, by now you will have understood that when these two situations occur, the <a href="https://cwe.mitre.org/data/definitions/59.html" target="_blank" rel="noopener noreferrer">link following attack</a> is the first thing that comes to mind and, even in this case, it can be applied in a similar way to what has been done <a href="../ZDI-CAN-16318/arb_rw/index.html#par4" target="_blank" rel="noopener noreferrer">here</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html#par6" target="_blank" rel="noopener noreferrer">here</a>.<br>
+					In this case, however, I don't want to settle for an Arbitrary File Read\Write primitive (as shown in the two examples just linked); my goal is to find a way for a Local Privilege Escalation &#10071;
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par4"></a>
+				<h2>An Arbitrary File Write primitive can be useful &#128513;</h2>
+				<h3>
+					Among the various files written by the <code>WTabletServicePro.exe</code> service without impersonating the regular user, <code>Wacom_Tablet.bak.txt</code>, <code>Wacom_Tablet.dat.txt</code> and <code>WacomTouch.xml.txt</code> are the most interesting because they're nothing more than the respective copy of <code>&#37;AppData&#37;\WTablet\Wacom_Tablet.bak</code>, <code>&#37;AppData&#37;\WTablet\Wacom_Tablet.dat</code> and <code>&#37;AppData&#37;\WTablet\WacomTouch.xml</code> with the addition of the .txt extension, as you can see from the image below.
+				</h3>
+			</p>
+
+		</div>
+			
+		<img src="media/WTablet_Files.png" alt="" title="WTabletServicePro.exe is copying files from the folder &#37;AppData&#37;\WTablet">
+		
+		<div>
+		
+			<p>
+				<h3>
+					Since the regular user has full access to the <code>&#37;AppData&#37;\WTablet</code> folder and all the files it contains, he can replace one of these files (I chose <code>&#37;AppData&#37;\WTablet\WacomTouch.xml</code>) with another one of his choice before clicking on the &quot;Package logs&quot; button and, as a consequence, the file chosen by the regular user will be copied by <code>WTabletServicePro.exe</code> to the <code>C:\Wacom\Logs</code> folder.<br>
+					Now, by combining a mount point with a symbolic link (just like I did <a href="../ZDI-CAN-16318/arb_rw/index.html#par4" target="_blank" rel="noopener noreferrer">here</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html#par6" target="_blank" rel="noopener noreferrer">here</a>), we can redirect <code>WTabletServicePro.exe</code>, forcing it to copy a file of our choice wherever we want, thus obtaining an Arbitrary File Write primitive &#10004;&#65039;<br>
+					Note: if we redirect <code>WTabletServicePro.exe</code> to an already existing file, that file will be overwritten (otherwise it will be created).<br>
+					<br>
+					From an exploit development perspective, it would be more convenient to use the Arbitrary File Write primitive programmatically, without requiring the user to interact by pressing the &quot;Package logs&quot; button.<br>
+					For this reason I used Process Monitor hoping to find the right parameter to pass to <code>PrefUtil.exe</code> to trigger the &quot;Package logs&quot; function but, obviously, I didn't find anything useful because, by pressing the button, <code>PrefUtil.exe</code> doesn't need to call itself with a special parameter as it can directly call its &quot;Package logs&quot; function &#129318;<br>
+					So I tried to analyze all the strings references of all the <code>PrefUtil.exe</code> modules via <a href="https://x64dbg.com/" target="_blank" rel="noopener noreferrer">x64dbg</a> (as I did <a href="../ZDI-CAN-16318/lpe/index.html#par8" target="_blank" rel="noopener noreferrer">here</a>) hoping to find the right parameter, and I was lucky because I found a reference to the <code>/package-logs</code> parameter!<br>
+					This means (and I tested it) that a generic process can trigger the &quot;Package logs&quot; function by calling <code>PrefUtil.exe</code> through <code>C:\Program Files\Tablet\Wacom\PrefUtil.exe /package-logs</code><br>
+					<br>
+					Ok... And how can we use the Arbitrary File Write primitive for a Local Privilege Escalation?
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par5"></a>
+				<h2>Oh?! Is FTD2XX.dll a phantom DLL? &#128123;</h2>
+				<h3>
+					When I first started hunting for vulnerabilities in Wacom Driver 6.3.45-1, before discovering <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">this</a> vulnerability, I found out through Process Monitor that <code>Wacom_Tablet.exe</code>, during the <a href="../ZDI-CAN-16318/lpe/index.html#par4" target="_blank" rel="noopener noreferrer">restore operation</a>, tries to load (under the context of SYSTEM) the missing <code>FTD2XX.dll</code> dll following the <a href="https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#standard-search-order-for-desktop-applications" target="_blank" rel="noopener noreferrer">Dynamic-Link Library search order</a>, as you can see from the image below.<br>
+				</h3>
+			</p>
+			
+		</div>
+			
+		<img src="media/FTD2XX.dll.png" alt="" title="Wacom_Tablet.exe tries to load the missing FTD2XX.dll">
+		
+		<div>
+		
+			<p>
+				<h3>
+					Remembering this fact, I tried to see if there was any relationship between <code>PrefUtil.exe</code> and <code>Wacom_Tablet.exe</code>, discovering (in the same way I discovered <code>/package-logs</code>) that <code>PrefUtil.exe</code> accepts the <code>/remove</code> parameter and, if run with that, triggers <code>Wacom_Tablet.exe</code> (many other operations are also performed, but their description is beyond the scope of this report) which, as shown in the previous image, tries to load the missing <code>FTD2XX.dll</code> dll.<br>
+					Ok, as you are probably already guessing, the last thing we now have to do to escalate our privileges is to exploit the phantom DLL <code>FTD2XX.dll</code> through the Phantom DLL hijacking technique (which is only one of the various <a href="https://itm4n.github.io/windows-dll-hijacking-clarified/" target="_blank" rel="noopener noreferrer">DLL Hijacking techniques</a>) by performing the following simple steps:
+					
+					<ol>
+						<li>
+							Compile a simple malicious <code>FTD2XX.dll</code> which, once loaded, opens the Windows Command Prompt.
+						</li>
+						
+						<li>
+							Using the Arbitrary File Write primitive previously described force <code>PrefUtil.exe</code> to copy the DLL into one of the folders where <code>Wacom_Tablet.exe</code> looks for it (I chose <code>C:\Program Files\Tablet\Wacom</code>).
+						</li>
+						
+						<li>
+							Force <code>Wacom_Tablet.exe</code> to load the malicious <code>FTD2XX.dll</code> via <code>C:\Program Files\Tablet\Wacom\PrefUtil.exe /remove</code>.
+						</li>
+						
+
+						
+					</ol>
+					
+					I compiled the simple malicious <code>FTD2XX.dll</code> using the following C++ code:
+				</h3>
+			</p>
+			
+		</div>
+		
+		<img src="media/FTD2XX.c.png" alt="" title="FTD2XX.dll source code">
+		
+		<div>
+			
+			<p>
+				<h3>
+					In our case the Phantom DLL hijacking technique works because <code>Wacom_Tablet.exe</code> doesn't use <a href="https://en.wikipedia.org/wiki/Code_signing" target="_blank" rel="noopener noreferrer">signed DLLs</a> or particular DLL hijacking prevention techniques.<br>
+					Read <a href="https://support.microsoft.com/en-us/topic/secure-loading-of-libraries-to-prevent-dll-preloading-attacks-d41303ec-0748-9211-f317-2edc819682e1" target="_blank" rel="noopener noreferrer">this</a> article if you want to learn more about some DLL hijacking prevention techniques.<br>
+					Read <a href="https://lucabarile.github.io/Blog/dll_hijacking_and_proxying/index.html" target="_blank" rel="noopener noreferrer">this</a> article of mine if you want to learn more about the DLL Hijacking using the DLL Proxying technique.<br>
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par6"></a>
+				<h2>Different ways to escalate our privileges &#8598;&#65039;&#11014;&#65039;&#8599;&#65039;</h2>
+				<h3>
+					To escalate the privileges I decided to use the technique just described (which I will deepen in the next paragraph) to enhance the discovery of the phantom dll and to illustrate an alternative way to the one followed in <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">ZDI-CAN-16318</a>.<br>
+					However, there are other ways to take advantage of the Arbitrary File Write primitive to escalate privileges and, among them, I want to describe the following two:
+					
+					<ul>
+						<li>
+							Overwrite <code>C:\Program Files\Tablet\Wacom\32\Installer.dat</code><br>
+							Similarly to what I did <a href="../ZDI-CAN-16318/lpe/index.html#par14" target="_blank" rel="noopener noreferrer">here</a> we can abuse the <code>Installer.dat</code> file to run an arbitrary program but, in this case, everything is much easier because we can exploit an Arbitrary File Write primitive (and not an Arbitrary File Write primitive <u>with partial control over the content of the file written\overwritten</u>).<br>
+							We can exploit the Arbitrary File Write primitive previously described to overwrite <code>Installer.dat</code> with another identical file to which the following line has been added:<br>
+							<br>
+							<img src="media/Installer.dat.png" alt="" title="The new Installer.dat file">
+							<br>
+							At this point the regular user only needs to restore a <a href="../ZDI-CAN-16318/lpe/index.html#par5" target="_blank" rel="noopener noreferrer">backup</a> of his Wacom device through <code>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</code> to force <a href="../ZDI-CAN-16318/lpe/index.html#par5" target="_blank" rel="noopener noreferrer">Remove.exe</a> to execute the <code>UpdateRouterFilter</code> command which, consequently, will execute a command prompt window under the context of SYSTEM.
+						</li>
+						<br>
+						<li>
+							Overwrite <code>C:\Program Files\Tablet\Wacom\32\Remove.exe</code><br>
+							Instead of overwriting <code>Installer.dat</code> we can directly overwrite (exploiting the Arbitrary File Write primitive previously described) <code>Remove.exe</code> with a simple executable which, once started, will execute a command prompt window, like this one:<br>
+							<br>
+							<img src="media/ShellLauncher.png" alt="" title="A simple shell launcher">
+							<br>
+							At this point the regular user only needs to restore a <a href="../ZDI-CAN-16318/lpe/index.html#par5" target="_blank" rel="noopener noreferrer">backup</a> of his Wacom device through <code>"C:\Program Files\Tablet\Wacom\PrefUtil.exe" /restore "C:\...\Backup.wacomprefs" /silent</code> to force <a href="../ZDI-CAN-16318/lpe/index.html#par4" target="_blank" rel="noopener noreferrer">Wacom_Tablet.exe</a> (which runs under the context of SYSTEM) to execute <code>Remove.exe</code> which, consequently, will execute a command prompt window under the same context.<br>
+							The negative side of this technique is to make it impossible for <code>Remove.exe</code> to carry out all the operations it has to perform once started (since we have replaced it), while the previous technique is not affected by this problem because it simply forces <code>Remove.exe</code> to perform one more operation (the execution of the command prompt window) than the ones it has to execute normally. 
+						</li>
+					</ul>
+					
+				</h3>
+			</p>
+			
+			<p>
+				<a name="par7"></a>
+				<h2>The Exploit &#9760;&#65039;</h2>
+				<h3>
+					The exploit that I've implemented and that I'm going to describe is based on the previously described <a href="#par5" target="_blank" rel="noopener noreferrer">technique</a>, and performs the following steps:
+					
+					<ol>
+					
+						<li>
+							If the <code>C:\Wacom</code> folder exists, delete it and re-create it; create it otherwise.
+						</li>
+						
+						<li>
+							Create the <code>C:\Wacom\Logs</code> mount point to <code>\RPC Control</code>.
+						</li>
+						
+						<li>
+							Create the <code>\RPC Control\WacomTouch.xml.txt</code> symbolic link to <code>%ProgramFiles%\Tablet\Wacom\FTD2XX.dll</code>.
+						</li>
+						
+						<li>
+							Copy the malicious <code>FTD2XX.dll</code> to <code>%AppData%\WTablet\WacomTouch.xml</code>.
+						</li>
+						
+						<li>
+							Run <code>PrefUtil.exe</code> through <code>%ProgramFiles%\Tablet\Wacom\PrefUtil.exe /package-logs</code>.<br>
+							The following operations are performed:
+							
+							<ol>
+								<li>
+									<code>PrefUtil.exe</code> starts to package the logs into <code>C:\Wacom\Logs</code>.
+								</li>
+								
+								<li>
+									<code>WTabletServicePro.exe</code>, running under the context of SYSTEM, tries to copy <code>%AppData%\WTablet\WacomTouch.xml</code> to <code>C:\Wacom\Logs\WacomTouch.xml.txt</code> without impersonating the current user.
+								</li>
+								
+								<li>
+									Since <code>C:\Wacom\Logs</code> is a mount point to <code>\RPC Control</code>, <code>WTabletServicePro.exe</code> tries to copy <code>%AppData%\WTablet\WacomTouch.xml</code> to <code>\RPC Control\WacomTouch.xml.txt</code>.
+								</li>
+								
+								<li>
+									Since <code>\RPC Control\WacomTouch.xml.txt</code> is a symbolic link to <code>%ProgramFiles%\Tablet\Wacom\FTD2XX.dll</code>, <code>WTabletServicePro.exe</code> copies <code>%AppData%\WTablet\WacomTouch.xml</code> to <code>%ProgramFiles%\Tablet\Wacom</code> folder and names it <code>FTD2XX.dll</code>.
+								</li>
+							</ol>
+						
+						</li>
+						
+						<li>
+							Run <code>PrefUtil.exe</code> through <code>C:\Program Files\Tablet\Wacom\PrefUtil.exe /silent /remove</code>.<br>
+							The following operations are performed silently:
+							
+							<ol>
+								<li>
+									<code>PrefUtil.exe</code> performs several operations and <code>Wacom_Tablet.exe</code> is triggered.
+								</li>
+								
+								<li>
+									<code>Wacom_Tablet.exe</code> performs several operations and tries to load the <code>%ProgramFiles%\Tablet\Wacom\FTD2XX.dll</code> dll.
+								</li>
+								
+								<li>
+									Since <code>FTD2XX.dll</code> now exists (point 5.4), it's loaded into memory and executed (without any checks). 
+								</li>
+								
+								<li>
+									<code>FTD2XX.dll</code> is programmed to execute a command prompt window and, since it's loaded from <code>Wacom_Tablet.exe</code> (which runs under the context of SYSTEM), the command prompt will also run under the same context, allowing us to escalate our privileges &#127881;
+								</li>
+							</ol>
+						
+						</li>
+					
+					</ol>
+					
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16857" target="_blank" rel="noopener noreferrer">Here</a> you can find the C# source code of my exploit (Visual Studio Project.zip).<br>
+					<a href="https://github.com/LucaBarile/ZDI-CAN-16857" target="_blank" rel="noopener noreferrer">Here</a> you can find the executable file (Exploit.exe).<br>
+					<br>
+					<code>CreateMountPoint.exe</code> and <code>CreateSymlink.exe</code> are programs developed by <a href="https://twitter.com/tiraniddo" target="_blank" rel="noopener noreferrer">James Forshaw</a> and are downloadable from his <a href="https://github.com/googleprojectzero/symboliclink-testing-tools" target="_blank" rel="noopener noreferrer">symboliclink-testing-tools</a> repository, respectively <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateMountPoint" target="_blank" rel="noopener noreferrer">here</a> and <a href="https://github.com/googleprojectzero/symboliclink-testing-tools/tree/main/CreateSymlink" target="_blank" rel="noopener noreferrer">here</a>.
+					
+				</h3>
+			</p>
+			
+		</div>
+		
+		<div>
+			<p>
+				<a name="par8"></a>
+				<h2>POC &#127910;</h2>
+				<h3>
+					I have tested the exploit only for Wacom Driver 6.3.45-1 but, most likely, it also works for the previous versions (and I hope not on the future ones &#128580;). 
+				</h3>
+			</p>
+		</div>
+			
+		<img src="media/POC.gif" alt="" title="Exploitation Proof Of Concept">
+		
+		<div>
+			<p>
+				<a name="par9"></a>
+				<h2>How to fix the vulnerability &#128657;</h2>
+				<h3>
+					The root cause from which everything begins is <code>C:\Wacom\Logs</code>.<br>
+					There may be several ways to solve the problem but, in my opinion, one of the best is to avoid creating the <code>C:\Wacom</code> folder (and its sub-folders) on the <code>C:\</code> drive and, more generally, in a location to which the regular user has full access (pay attention! As I explained <a href="../ZDI-CAN-16318/lpe/index.html#par6" target="_blank" rel="noopener noreferrer">here</a>, also the <code>C:\Windows\Temp</code> folder isn't a good candidate, although the regular user doesn't have full access to it).<br>
+					<br>
+					A solution would be, for example, to create the <code>Logs</code> folder in <code>%ProgramFiles%\Tablet\Wacom\</code>, where the regular user can't write to and, consequently, can't perform the previously described attack. In fact, in this case, <code>WTabletServicePro.exe</code> can't be redirected while copying <code>%AppData%\WTablet\WacomTouch.xml</code> to <code>%ProgramFiles%\Tablet\Wacom\Logs\WacomTouch.xml.txt</code> because the regular user can no longer create the <code>%ProgramFiles%\Tablet\Wacom\Logs</code> mount point since he doesn't have write access on the <code>%ProgramFiles%\Tablet\Wacom</code> folder.<br>
+					<br>
+					Another idea is to force <code>WTabletServicePro.exe</code> to <a href="https://docs.microsoft.com/en-us/windows/win32/com/impersonation" target="_blank" rel="noopener noreferrer">impersonate</a> the current user while copying <code>%AppData%\WTablet\WacomTouch.xml</code> to <code>C:\Wacom\Logs\WacomTouch.xml.txt</code>.<br>
+					By doing this, the link following attack will fail because when <code>WTabletServicePro.exe</code> will be redirected to the <code>%ProgramFiles%\Tablet\Wacom</code> folder, and will try to copy the malicious <code>FTD2XX.dll</code> into it, it will fail because, impersonating the user, it won't have the necessary rights to write the malicious file. 
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par10"></a>
+				<h2>Vulnerability disclosure timeline &#128197;</h2>
+				<h3>
+					First of all, I checked if the vendor has launched a bug bounty program but, unfortunately, Wacom Technology Corporation has none and the only page where you can report something (<a href="https://support.wacom.com/hc/en-us/requests/new" target="_blank" rel="noopener noreferrer">this</a>), doesn't speak explicitly of any acknowledgement (neither meritocratically nor economically).<br>
+					At this point I followed the MITRE <a href="https://cve.mitre.org/cve/researcher_reservation_guidelines" target="_blank" rel="noopener noreferrer">researcher reservation guidelines</a> and, since Wacom Technology Corporation isn't on the <a href="https://www.cve.org/PartnerInformation/ListofPartners" target="_blank" rel="noopener noreferrer">CNAs partner list</a>, the only two remaining possibilities were to contact the CNA of Last Resort (<a href="https://cve.mitre.org/about/terminology.html#cna-lr" target="_blank" rel="noopener noreferrer">CNA-LR</a>) through the <a href="https://cveform.mitre.org/" target="_blank" rel="noopener noreferrer">CVE Request web form</a> or a <a href="https://cve.mitre.org/cve/researcher_reservation_guidelines#process#4" target="_blank" rel="noopener noreferrer">third-party coordinator CNAs</a>.<br>
+					Since the CNA of Last Resort, as the word itself says, is <u>the last resort</u> (&#127965;&#65039;), I looked for a third-party CNA in the CNAs list and decided to contact the <a href="https://www.zerodayinitiative.com/" target="_blank" rel="noopener noreferrer">Zero Day Initiative</a> CNA.<br>
+					ZDI relieves you from the burden of tracking the bug with the vendor, <u>could</u> make a monetary offer to the researcher (CNA of Last Resort doesn't), follows a <a href="https://www.bugcrowd.com/resource/what-is-responsible-disclosure/" target="_blank" rel="noopener noreferrer">responsible vulnerability disclosure</a> policy and has a <a href="https://www.zerodayinitiative.com/about/benefits/" target="_blank" rel="noopener noreferrer">loyalty program</a> (CNA of Last Resort doesn't). You can learn more about their disclosure policy <a href="https://www.zerodayinitiative.com/advisories/disclosure_policy/" target="_blank" rel="noopener noreferrer">here</a>.
+					
+					<ul>
+						<!-- Italy (Milano) GMT+1 | ZDI (??) GMT-6 | Milano is 7h ahead of ZDI-->
+						<li>2022-03-03 (GMT+1) - I <a href="#par2">casually</a> discovered the vulnerability.</li>
+						<li>2022-03-04 (GMT-6) - I reported the vulnerability to ZDI (CASE OPENED).</li>
+						<li>2022-03-07 (GMT-6) - ZDI assigned the case (CASE ASSIGNED).</li>
+						<li>2022-03-30 (GMT+1) - I asked ZDI for an update.</li>
+						<li>2022-03-31 (GMT+1) - ZDI replied that they're currently experiencing high case volumes so I can expect several weeks for reply.</li>
+						<li>2022-04-05 (GMT-6) - ZDI investigated the case (CASE INVESTIGATED).</li>
+						<li>2022-04-12 (GMT+1) - ZDI told me that they ran into a problem when running the PoC (Wacom_Tablet.exe fails to load FTD2XX.dll).</li>
+						<li>2022-04-12 (GMT+1) - I provided to ZDI additional guidance to solve the problem.</li>
+						<li>2022-04-14 (GMT-6) - ZDI reopened the case and added it to the queue for review (CASE ASSIGNED).</li>
+						<li>2022-05-03 (GMT-6) - ZDI re-investigated the case following my additional guidance (CASE INVESTIGATED).</li>
+						<li>2022-05-09 (GMT+1) - ZDI has successfully reproduced my PoC and extended an offer for the rights to my vulnerability.</li>
+						<li>2022-05-09 (GMT+1) - I accepted the offer and sent them the requested data.</li>
+						<li>2022-06-03 (GMT+1) - I received the payment issued by ZDI.</li>
+						<li>2022-06-27 (GMT+1) - I asked ZDI for an update.</li>
+						<li>2022-06-27 (GMT+1) - ZDI replied that they've had a hard time disclosing this case to the vendor, but they're going to send them one more message informing them that they intend to 0-day the case if they don't receive a legitimate reply.</li>
+						<li>2022-07-13 (GMT-6) - The case has been officially contracted to the ZDI (CASE CONTRACTED).</li>
+						<li>2022-07-19 (GMT+1) - I asked ZDI for an update (no answer).</li>
+						<li>2022-07-28 (GMT-6) - ZDI reviewed the case (CASE REVIEWED).</li>
+						<li>2022-08-04 (GMT-6) - ZDI assigned the id ZDI-CAN-16857 to the vulnerability and submitted the details of this case to the vendor, giving it the deadline of 2022-12-02 for the fix (VENDOR DISCLOSURE).</li>
+						<li>2023-01-22 (GMT+1) - I asked ZDI for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
+						<li>2023-02-22 (GMT+1) - I asked ZDI for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
+						<li>2023-03-23 (GMT+1) - I informed ZDI that I decided to publish the exploit for the vulnerability by the end of April because of their delays (after more than a year since the vulnerability was reported, it still only appear on their &quot;<a href="https://www.zerodayinitiative.com/advisories/upcoming/" target="_blank" rel="noopener noreferrer">Upcoming</a>&quot; page and no CVE ID has been assigned) and lack of answers. In addition, I pointed out the fact that their behavior is not in accordance with their <a href="https://www.zerodayinitiative.com/blog/2022/8/11/new-disclosure-timelines-for-bugs-from-faulty-patches" target="_blank" rel="noopener noreferrer">disclosure timelines</a> (again, no answare...).</li>
+						<li>2023-04-03 (GMT+1) - I decided to make the exploits for this vulnerability (and related reports) public on my GitHub page and informed MITRE through CNA-LR.</li>
+					</ul>
+				</h3>
+			</p>
+		
+			<p>
+				<a name="par11"></a>
+				<h2>Final considerations</h2>
+				<h3>
+					The conclusions are the same as I wrote in <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">my main report</a>; I report below, for convenience, the most interesting paragraphs.
+					
+					<ul>
+						<li>
+							<a href="../ZDI-CAN-16318/lpe/index.html#par20" target="_blank" rel="noopener noreferrer">How to fix the vulnerability</a> &#128657;
+						</li>
+						 
+						<li>
+							<a href="../ZDI-CAN-16318/lpe/index.html#par23" target="_blank" rel="noopener noreferrer">Conclusion</a>
+						</li>
+						
+						<li>
+							<a href="../ZDI-CAN-16318/lpe/index.html#par24" target="_blank" rel="noopener noreferrer">Useful readings and references</a> &#128279;
+						</li>
+					</ul>
+				
+					Since the concepts of symbolic link and mount point have already been introduced in <a href="../ZDI-CAN-16318/arb_r/index.html" target="_blank" rel="noopener noreferrer">this</a> and <a href="../ZDI-CAN-16318/arb_rw/index.html" target="_blank" rel="noopener noreferrer">this</a> article, check out <a href="../ZDI-CAN-16318/arb_rw/index.html#par9" target="_blank" rel="noopener noreferrer">these</a> references if you want to examine them in depth.<br>
+					Here I just want to suggest some references related to the DLL hijacking, since it's the only new concept covered in this paper; these articles may be useful to those who know nothing (or little) about it:
+				
+					<ul>
+						<li>
+							<a href="https://docs.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#standard-search-order-for-desktop-applications" target="_blank" rel="noopener noreferrer">Dynamic-Link Library search order</a> - Microsoft &#128279;
+						</li>
+						 
+						<li>
+							<a href="https://itm4n.github.io/windows-dll-hijacking-clarified/" target="_blank" rel="noopener noreferrer">DLL Hijacking techniques</a> -  Cl&eacute;ment Labro &#128279;
+						</li>
+						
+						<li>
+							<a href="https://en.wikipedia.org/wiki/Code_signing" target="_blank" rel="noopener noreferrer">Signed DLLs</a> - Wikipedia &#128279;
+						</li>
+						
+						<li>
+							<a href="https://support.microsoft.com/en-us/topic/secure-loading-of-libraries-to-prevent-dll-preloading-attacks-d41303ec-0748-9211-f317-2edc819682e1" target="_blank" rel="noopener noreferrer">DLL hijacking prevention techniques</a> - Microsoft &#128279;
+						</li>
+						
+						<li>
+							<a href="https://lucabarile.github.io/Blog/dll_hijacking_and_proxying/index.html" target="_blank" rel="noopener noreferrer">DLL Proxying technique</a> - Luca Barile &#128279;
+						</li>
+						
+					</ul>
+					
+					And don't forget to read <a href="../ZDI-CAN-16318/lpe/index.html" target="_blank" rel="noopener noreferrer">my report</a> in which I explain how to exploit another vulnerability to get a Local Privilege Escalation!
+				</h3>
+			</p>
+
+		</div>
+		
+		<br>
+		
+		<hr>
+		
+		<h3 align="center">
+			<i>If you liked this article, what do you think about buying me a unicorn? <a href="https://www.buymeacoffee.com/LucaBarile" target="_blank" rel="noopener noreferrer">Yeees! I'll buy it for you!</a></i> &#129412;
+		</h3>
+		
+	</body>
+</html>
