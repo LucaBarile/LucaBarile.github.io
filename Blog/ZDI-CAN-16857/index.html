@@ -24,7 +24,7 @@
 	<body bgcolor="black" text="DarkGray" link="lightblue" alink="gold" vlink="DarkRed">
 	
 		<h1>Wacom Driver Local Privilege Escalation Vulnerability</h1>
-		<h2 align="center" style="color:white">ZDI-CAN-16857 (0-day)</h2>
+		<h2 align="center" style="color:white">CVE-2023-32163 &#183; ZDI-CAN-16857 (0-day)</h2>
 		
 		<div>
 			<p>
@@ -369,7 +369,29 @@
 						<li>2023-02-22 (GMT+1) - I asked ZDI for an update since the vulnerability deadline has passed but the advisory has not been published yet (no answare...).</li>
 						<li>2023-03-23 (GMT+1) - I informed ZDI that I decided to publish the exploit for the vulnerability by the end of April because of their delays (after more than a year since the vulnerability was reported, it still only appear on their &quot;<a href="https://www.zerodayinitiative.com/advisories/upcoming/" target="_blank" rel="noopener noreferrer">Upcoming</a>&quot; page and no CVE ID has been assigned) and lack of answers. In addition, I pointed out the fact that their behavior is not in accordance with their <a href="https://www.zerodayinitiative.com/blog/2022/8/11/new-disclosure-timelines-for-bugs-from-faulty-patches" target="_blank" rel="noopener noreferrer">disclosure timelines</a> (again, no answare...).</li>
 						<li>2023-04-03 (GMT+1) - I decided to make the exploits for this vulnerability (and related reports) public on my GitHub page and informed MITRE through CNA-LR.</li>
+						
+						<li>2023-04-25 - MITRE replied that they will reach out to ZDI next regarding the issue.</li>
+						
+						<li>2023-05-23 - MITRE told me that ZDI let them know they are planning to assign the CVE ID to my vulnerability and will be contacting me shortly with that.<br>Interestingly, ZDI didn't respond to my requests for updates for months but, after being prompted by MITRE, responded immediately &#128530;<br>It sounds something like: if they don't respond ask MITRE to tell them to respond &#129318;</li>
+						
+						<li>2023-05-24 - ZDI replied to my mail apologizing for the lack of response on their end. They also told me that the <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-32163" target="_blank" rel="noopener noreferrer">CVE-2023-32163</a> ID will soon be assigned to this vulnerability (ZDI-CAN-16857) and that they don’t blame me for posting the cases. Finally, they told me that they intend to publish this vulnerability as a zero-day advisory (due to the vendor's lack of response), and are working to get in a position where they can strictly hold to their disclosure policy in the future.</li>
+						
+						<li>2023-05-26 - ZDI assigned the identifier <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-32163" target="_blank" rel="noopener noreferrer">CVE-2023-32163</a> to the vulnerability and published it <a href="https://www.zerodayinitiative.com/advisories/ZDI-23-742/" target="_blank" rel="noopener noreferrer">here</a> as a zero-day advisory with internal code ZDI-23-742.</li>
+						
+						<li>2023-08-15 - Looking for the details of some vulnerabilities on the MITRE website, I also searched, out of curiosity, for those related to <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-32163" target="_blank" rel="noopener noreferrer">mine</a> and, surprisingly, found that there was no description and the case was still marked as 'RESERVED'.</li>
+						
+						<li>2023-08-16 - I informed MITRE of the lack of the vulnerability details from their <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-32163" target="_blank" rel="noopener noreferrer">official page</a> asking for an explanation.</li>
+						
+						<li>2023-08-17 - MITRE replied that the vulnerability falls under the scope of the Zero Day Initiative CNA (and so I have to turn to them). At this point I asked ZDI for an explanation.</li>
+						
+						<li>2023-08-22 - ZDI replied that they have not committed that data to MITRE yet (no problem, it's only been a year and five months since I reported the vulnerability...). They also told me that they’ve been working on an internal CVE services tool, and that has delayed some of their publications for this year (but also for last year I would say &#129318;); the team is working to get the data updated.</li>
+						
+						<li>2023-09-06 - ZDI published the description of the vulnerability on the MITRE website (<a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-32163" target="_blank" rel="noopener noreferrer">here</a>) and in the National Vulnerability Database (<a href="https://nvd.nist.gov/vuln/detail/CVE-2023-32163" target="_blank" rel="noopener noreferrer">here</a>).</li>
+						
 					</ul>
+					
+					Well... After only one year and six months, the vulnerability has finally been published. I think it's not necessary to add any more comments on the questionable timing &#128545;
+					
 				</h3>
 			</p>
 		
